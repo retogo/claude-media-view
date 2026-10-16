@@ -1,7 +1,7 @@
 import type { UiBlitArgs } from 'claude-code'
 import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
-import { GIF_TWO_FRAMES, PLUGIN, PNG_1X1, VIEWPORT, onMac, readCall } from '../support'
+import { GIF_TWO_FRAMES, PLUGIN, PNG_1X1, VIEWPORT, onMac, readCall, wideGif } from '../support'
 
 describe('ToolGroup', () => {
   test('draws a read PNG from its cached file under the group row', async ($, on) => {
@@ -140,5 +140,54 @@ describe('GIF loops', () => {
     await clock.advance(1000)
 
     expect(blits).toBe(1)
+  })
+
+  // A pane opening or closing narrows or widens the transcript; the terminal keeps an unchanged source at its old size.
+  describe('drawn again at another width', () => {
+    const WIDE = wideGif(400, 100)
+    const NARROW_VIEWPORT = { columns: 30, rows: 24 }
+    const mountAt = ($: Engine, viewport: { columns: number; rows: number }) =>
+      $.ui.mount({
+        plugin: PLUGIN,
+        surface: 'terminal',
+        component: 'ToolGroup',
+        props: { calls: [readCall('toolu_wide', WIDE, 'image/gif')], isActive: false, isExpanded: false },
+        requestId: 'group-resized',
+        viewport,
+      })
+
+    test('draws a new Image for the new size', async ($, on) => {
+      onMac(on)
+      mock.clock(on)
+      on('ui.blit', () => ({ value: {} }))
+
+      const wideUi = await mountAt($, VIEWPORT)
+      const wide = await wideUi.find({ type: 'Image' })
+      await wideUi.unmount()
+      const narrow = await (await mountAt($, NARROW_VIEWPORT)).find({ type: 'Image' })
+
+      expect(Number(narrow?.props.columns)).toBeLessThan(Number(wide?.props.columns))
+      expect(narrow?.key).not.toBe(wide?.key)
+    })
+
+    test('stops the old size’s GIF loop', async ($, on) => {
+      onMac(on)
+      const clock = mock.clock(on)
+      const blitted: string[] = []
+      on('ui.blit', (_$, e) => {
+        blitted.push(e.key)
+        return { value: {} }
+      })
+
+      const wideUi = await mountAt($, VIEWPORT)
+      await clock.advance(100)
+      await wideUi.unmount()
+      const narrow = await (await mountAt($, NARROW_VIEWPORT)).find({ type: 'Image' })
+      blitted.length = 0
+      await clock.advance(100)
+      await clock.advance(100)
+
+      expect(new Set(blitted)).toEqual(new Set([narrow?.key]))
+    })
   })
 })

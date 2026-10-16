@@ -36,6 +36,14 @@ export const readCall = (id: string, base64: string, type: string) => ({
   output: { type: 'image', file: { base64, type, originalSize: 1 } },
 })
 
+// A two-frame GIF of `width`×`height` whose frames each paint one pixel, 100 ms apart, as base64.
+export const wideGif = (width: number, height: number) => {
+  const word = (value: number) => [value & 0xff, value >> 8]
+  const frame = [0x21, 0xf9, 4, 0, 10, 0, 0, 0, 0x2c, ...word(0), ...word(0), ...word(1), ...word(1), 0, 2, 2, 0x4c, 0x01, 0]
+  const header = [...new TextEncoder().encode('GIF89a'), ...word(width), ...word(height), 0x80, 0, 0, 0, 0, 0, 255, 255, 255]
+  return new Uint8Array([...header, ...frame, ...frame, 0x3b]).toBase64()
+}
+
 // The path an `fs.*` hook sees, as these tests write it: on Windows the engine resolves `/tmp/x` to `D:\tmp\x`.
 export const posixPath = (path: string) => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
 

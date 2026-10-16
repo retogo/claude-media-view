@@ -41,6 +41,16 @@ export const stopAnimations = (site: Site, requestId?: string) => {
   }
 }
 
+// Stops the loops of a site's request whose Images are no longer drawn.
+export const stopAnimationsExcept = (site: Site, requestId: string, keys: readonly string[]) => {
+  const drawn = new Set(keys.map(key => loopId(site, requestId, key)))
+  for (const [id, loop] of loops) {
+    if (id.startsWith(`${site}/${requestId}/`) && !drawn.has(id)) {
+      stop(id, loop)
+    }
+  }
+}
+
 // Swaps a keyed Image through its frames until it is unmounted or stopped. A still gets one
 // blit of its own frame, which sends nothing new but tells whether this terminal draws it.
 // Once the terminal refuses pictures no loop starts again: every blit would be refused too.

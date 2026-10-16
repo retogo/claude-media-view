@@ -3,9 +3,13 @@ import type { EngineInterface, RenderElement, RenderInputOf } from 'claude-code'
 import { TILE_GAP, type AbovePromptTiles } from '../usecases/renders/abovePrompt'
 import { ENTRY_GAP, type MediaViewEntry } from '../usecases/renders/pane/mediaView'
 import { PICTURE_GAP, type PictureRows } from '../usecases/renders/pictureRows'
-import { animate, reportDeny, stopAnimation, stopAnimations, type Site } from './animator'
+import type { CellBox } from '../domain/layout'
+import { animate, reportDeny, stopAnimation, stopAnimations, stopAnimationsExcept, type Site } from './animator'
 
 const BUTTON_GAP = 1
+
+// An Image of another size is another Image: the terminal keeps an unchanged source at the size it was first sent (ADR 0017).
+const sizedKey = (key: string, { columns, rows }: CellBox) => `${key}@${columns}x${rows}`
 
 type TranscriptRow = RenderInputOf<'ToolGroup' | 'ToolResult' | 'UserMessage', 'terminal'>
 
@@ -16,10 +20,12 @@ export function drawPictureRows(
   { site, own, rows, isAnimated }: { site: Site; own: RenderElement; rows: PictureRows; isAnimated: boolean },
 ) {
   const { Box, Image } = $.ui.resolve(e)
+  const pictures = rows.flat().map(shown => ({ ...shown, key: sizedKey(shown.key, shown.box) }))
   if (e.props.onScreen === null || !isAnimated) {
     stopAnimations(site, e.requestId)
   } else {
-    rows.flat().forEach(({ key, picture }) => animate($, { site, requestId: e.requestId, key, frames: picture.frames }, deny => reportDeny($, deny)))
+    stopAnimationsExcept(site, e.requestId, pictures.map(({ key }) => key))
+    pictures.forEach(({ key, picture }) => animate($, { site, requestId: e.requestId, key, frames: picture.frames }, deny => reportDeny($, deny)))
   }
 
   return (
@@ -28,7 +34,7 @@ export function drawPictureRows(
       {rows.map(row => (
         <Box flexDirection="row" gap={PICTURE_GAP}>
           {row.map(({ key, picture, box }) => (
-            <Image key={key} source={picture.frames[0]!.source} columns={box.columns} rows={box.rows} alt="image" />
+            <Image key={sizedKey(key, box)} source={picture.frames[0]!.source} columns={box.columns} rows={box.rows} alt="image" />
           ))}
         </Box>
       ))}
@@ -39,15 +45,17 @@ export function drawPictureRows(
 // The draft's pictures above the prompt, each labelled `#n`, with `+N` for those left out.
 export function drawAbovePrompt($: EngineInterface, e: RenderInputOf<'AbovePrompt', 'terminal'>, { tiles, hidden }: AbovePromptTiles) {
   const { Box, Image, Text } = $.ui.resolve(e)
-  tiles.forEach(({ n, picture }) =>
-    animate($, { site: 'AbovePrompt', requestId: e.requestId, key: `paste-${n}`, frames: picture.frames }, deny => reportDeny($, deny)),
+  const keys = tiles.map(({ n, box }) => sizedKey(`paste-${n}`, box))
+  stopAnimationsExcept('AbovePrompt', e.requestId, keys)
+  tiles.forEach(({ picture }, i) =>
+    animate($, { site: 'AbovePrompt', requestId: e.requestId, key: keys[i]!, frames: picture.frames }, deny => reportDeny($, deny)),
   )
 
   return (
     <Box flexDirection="row" gap={TILE_GAP}>
       {tiles.map(({ n, picture, box }) => (
         <Box flexDirection="column">
-          <Image key={`paste-${n}`} source={picture.frames[0]!.source} columns={box.columns} rows={box.rows} alt={`[Image #${n}]`} />
+          <Image key={sizedKey(`paste-${n}`, box)} source={picture.frames[0]!.source} columns={box.columns} rows={box.rows} alt={`[Image #${n}]`} />
           <Text dimColor>{`#${n}`}</Text>
         </Box>
       ))}
@@ -69,10 +77,12 @@ export function drawMediaViewPane($: EngineInterface, e: RenderInputOf<'Pane', '
     return <Text dimColor>No images in this session yet.</Text>
   }
   // Only entries inside the pane's scroll window move (ADR 0008).
-  entries.forEach(({ id, picture, isVisible }) =>
+  const keys = entries.map(({ id, box }) => sizedKey(id, box))
+  stopAnimationsExcept('Pane', e.requestId, keys)
+  entries.forEach(({ picture, isVisible }, i) =>
     isVisible
-      ? animate($, { site: 'Pane', requestId: e.requestId, key: id, frames: picture.frames }, deny => reportDeny($, deny))
-      : stopAnimation('Pane', e.requestId, id),
+      ? animate($, { site: 'Pane', requestId: e.requestId, key: keys[i]!, frames: picture.frames }, deny => reportDeny($, deny))
+      : stopAnimation('Pane', e.requestId, keys[i]!),
   )
 
   return (
@@ -85,7 +95,7 @@ export function drawMediaViewPane($: EngineInterface, e: RenderInputOf<'Pane', '
             <Button key={`open-${id}`} label="Open" onPress={() => buttons.open(path)} />
             {rowId !== undefined && <Button key={`show-${id}`} label="Show in chat" onPress={() => buttons.showInChat(rowId)} />}
           </Box>
-          <Image key={id} source={picture.frames[0]!.source} columns={box.columns} rows={box.rows} alt={path} />
+          <Image key={sizedKey(id, box)} source={picture.frames[0]!.source} columns={box.columns} rows={box.rows} alt={path} />
         </Box>
       ))}
     </Box>

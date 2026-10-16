@@ -54,3 +54,4 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0014](0014-loader-rules.md) | The hooks module follows the loader's rules | Accepted |
 | [0015](0015-layers-named-after-claude-code.md) | Layers, and usecases named after Claude Code's events | Accepted |
 | [0016](0016-ci-scope.md) | CI validates and tests the module on three OSes | Accepted |
+| [0017](0017-a-new-size-is-a-new-image.md) | A picture drawn at a new size is a new Image | Accepted |

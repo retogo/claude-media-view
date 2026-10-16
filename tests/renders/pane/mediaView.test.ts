@@ -100,6 +100,6 @@ describe('/media-view', () => {
     })
     await clock.advance(1000)
 
-    expect(new Set(blits.map(blit => blit.key))).toEqual(new Set(['paste-3']))
+    expect(new Set(blits.map(blit => blit.key.split('@')[0]))).toEqual(new Set(['paste-3']))
   })
 })
