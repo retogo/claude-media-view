@@ -21,8 +21,8 @@ Option 1, on macOS, Linux and Windows, against the oldest Claude Code version te
 
 - In a copy without `.claude-plugin/types/`, `claude plugin validate .` then `claude plugin test .` left `.claude-plugin/` holding only `plugin.json`.
 - Every loader refusal met so far failed every test with the loader's message.
+- The first CI run validated and ran the tests without authentication on all three OSes. On Windows the engine resolves a POSIX path such as `/tmp/x` to `D:\tmp\x` before an `fs.*` hook sees it, so the tests' file answers compare paths in POSIX form.
 
 ## Consequences
 
 - A type error reaches CI only if it also breaks a test.
-- Whether `claude plugin test` runs without authentication in CI is confirmed by the first CI run.

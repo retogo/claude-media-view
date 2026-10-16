@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
-import { GIF_TWO_FRAMES, PLUGIN, PNG_1X1, entry } from '../support'
+import { GIF_TWO_FRAMES, PLUGIN, PNG_1X1, entry, posixPath } from '../support'
 
 const POLL_MS = 200
 
@@ -34,9 +34,9 @@ const startComposing = async ($: Engine, on: On, draft: { text: string }, pasted
     },
   }))
   on('fs.list', (_$, e) => ({
-    value: e.path === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : [entry('3.png', 'file'), entry('4.png', 'file')],
+    value: posixPath(e.path) === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : [entry('3.png', 'file'), entry('4.png', 'file')],
   }))
-  on('fs.exists', (_$, e) => ({ value: e.path === '/tmp/claude-501/-Users-me/session-1/images' }))
+  on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === '/tmp/claude-501/-Users-me/session-1/images' }))
   on('fs.read', () => ({ value: { base64: pasted } }))
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })

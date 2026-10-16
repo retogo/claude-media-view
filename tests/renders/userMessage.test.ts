@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { encodePng } from '../../hooks/domain/media/png'
-import { PLUGIN, VIEWPORT, entry, onMac, onPasteCache } from '../support'
+import { PLUGIN, VIEWPORT, entry, onMac, onPasteCache, posixPath } from '../support'
 
 // The delay before a failed picture is tried again (usecases/images.ts).
 const RETRY_DELAY_MS = 250
@@ -28,9 +28,9 @@ describe('UserMessage', () => {
     mock.clock(on)
     const wide = encodePng({ width: 64, height: 36, rgba: new Uint8Array(64 * 36 * 4).fill(128) }).toBase64()
     on('fs.list', (_$, e) => ({
-      value: e.path === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : ['3', '4', '5', '6'].map(n => entry(`${n}.png`, 'file')),
+      value: posixPath(e.path) === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : ['3', '4', '5', '6'].map(n => entry(`${n}.png`, 'file')),
     }))
-    on('fs.exists', (_$, e) => ({ value: e.path === '/tmp/claude-501/-Users-me/session-1/images' }))
+    on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === '/tmp/claude-501/-Users-me/session-1/images' }))
     on('fs.read', () => ({ value: { base64: wide } }))
 
     const ui = await $.ui.mount({

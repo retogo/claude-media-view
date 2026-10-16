@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
-import { GIF_TWO_FRAMES, PNG_1X1 } from '../support'
+import { GIF_TWO_FRAMES, PNG_1X1, posixPath } from '../support'
 
 const TOOL = 'mcp__media-view__frames'
 
@@ -14,10 +14,10 @@ const startWith = async ($: Engine, on: On, files: Record<string, string>, readD
   mock.env(on, {})
   mock.clock(on)
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  on('fs.stat', (_$, e) => (files[e.path] === undefined ? { deny: `ENOENT: ${e.path}` } : { value: { kind: 'file', size: Uint8Array.fromBase64(files[e.path]!).length, mtimeMs: 0, isLink: false } }))
+  on('fs.stat', (_$, e) => (files[posixPath(e.path)] === undefined ? { deny: `ENOENT: ${e.path}` } : { value: { kind: 'file', size: Uint8Array.fromBase64(files[posixPath(e.path)]!).length, mtimeMs: 0, isLink: false } }))
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('tool.register', (_$, e) => ({ value: { tool: `mcp__media-view__${e.name}` } }))
-  on('fs.read', (_$, e) => (files[e.path] === undefined ? { deny: `ENOENT: ${e.path}` } : { value: { base64: files[e.path]! } }))
+  on('fs.read', (_$, e) => (files[posixPath(e.path)] === undefined ? { deny: `ENOENT: ${e.path}` } : { value: { base64: files[posixPath(e.path)]! } }))
   on('tool.check', { tool: 'Read' }, (_$, e) => readDecision((e.input as { file_path: string }).file_path))
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
 }

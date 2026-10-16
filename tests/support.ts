@@ -36,15 +36,18 @@ export const readCall = (id: string, base64: string, type: string) => ({
   output: { type: 'image', file: { base64, type, originalSize: 1 } },
 })
 
+// The path an `fs.*` hook sees, as these tests write it: on Windows the engine resolves `/tmp/x` to `D:\tmp\x`.
+export const posixPath = (path: string) => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
+
 export const entry = (name: string, kind: 'file' | 'dir') => ({ name, kind, size: 0, mtimeMs: 0, isLink: false })
 
 // The paste cache of session `session-1` holds `5.png`.
 export const onPasteCache = (on: On) => {
   on('fs.list', (_$, e) => ({
-    value: e.path === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : e.path.endsWith('/images') ? [entry('5.png', 'file')] : [],
+    value: posixPath(e.path) === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : posixPath(e.path).endsWith('/images') ? [entry('5.png', 'file')] : [],
   }))
-  on('fs.exists', (_$, e) => ({ value: e.path === '/tmp/claude-501/-Users-me/session-1/images' }))
-  on('fs.read', (_$, e) => (e.path.endsWith('/5.png') ? { value: { base64: PNG_1X1 } } : { deny: `no ${e.path}` }))
+  on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === '/tmp/claude-501/-Users-me/session-1/images' }))
+  on('fs.read', (_$, e) => (posixPath(e.path).endsWith('/5.png') ? { value: { base64: PNG_1X1 } } : { deny: `no ${e.path}` }))
 }
 
 
@@ -88,8 +91,8 @@ export const startSession = async ($: Engine, on: On, pasted = PNG_1X1) => {
     const stdout = e.argv[0] === 'uname' ? 'Darwin\n' : e.argv[0] === 'id' ? '501\n' : ''
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  on('fs.list', (_$, e) => ({ value: e.path === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : e.path === PASTE_CACHE ? [entry('2.png', 'file'), entry('3.png', 'file')] : [] }))
-  on('fs.exists', (_$, e) => ({ value: e.path === PASTE_CACHE }))
+  on('fs.list', (_$, e) => ({ value: posixPath(e.path) === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : posixPath(e.path) === PASTE_CACHE ? [entry('2.png', 'file'), entry('3.png', 'file')] : [] }))
+  on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === PASTE_CACHE }))
   on('fs.read', () => ({ value: { base64: pasted } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
