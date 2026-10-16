@@ -1,0 +1,147 @@
+import { decodeGif } from './gif'
+import { decodeJpeg, type Rgba } from './jpeg'
+import { decodePng, fitWithin } from './png'
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47]
+const GIF_SIGNATURE = [0x47, 0x49, 0x46, 0x38]
+const JPEG_SIGNATURE = [0xff, 0xd8, 0xff]
+const PNG_WIDTH_OFFSET = 16
+const PNG_HEIGHT_OFFSET = 20
+const GIF_WIDTH_OFFSET = 6
+const GIF_HEIGHT_OFFSET = 8
+const JPEG_FIRST_MARKER = 2
+const MARKER_PREFIX = 0xff
+// Start-of-frame markers carry the size; 0xC4, 0xC8 and 0xCC share the range but do not.
+const START_OF_FRAME_FIRST = 0xc0
+const START_OF_FRAME_LAST = 0xcf
+const NOT_START_OF_FRAME = [0xc4, 0xc8, 0xcc]
+const SOF_HEIGHT_OFFSET = 5
+const SOF_WIDTH_OFFSET = 7
+const GIF_TRAILER = 0x3b
+const JPEG_END = [0xff, 0xd9]
+// A PNG ends with its IEND chunk: type, then a four-byte CRC.
+const PNG_END = [0x49, 0x45, 0x4e, 0x44]
+const PNG_CRC_BYTES = 4
+
+// `index` and `startMs` place the frame in its source, which may have had more frames.
+export type RgbaFrame = { rgba: Uint8Array; delayMs: number; index: number; startMs: number }
+
+// Bounds for decoded pixels: the longest edge, and how many frames to keep.
+export type DecodeLimits = { maxEdge: number; maxFrames: number }
+
+// A PNG is drawn as it is; everything else becomes RGBA frames (one for a still).
+export type Decoded =
+  | { kind: 'png'; width: number; height: number; png: Uint8Array }
+  | { kind: 'rgba'; width: number; height: number; frames: RgbaFrame[]; sourceFrameCount: number }
+
+export type Sniffed = { mediaType: 'image/png' | 'image/gif' | 'image/jpeg'; width: number; height: number }
+
+const startsWith = (bytes: Uint8Array, signature: readonly number[]) => signature.every((byte, i) => bytes[i] === byte)
+
+const view = (bytes: Uint8Array) => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+
+const jpegSize = (bytes: Uint8Array) => {
+  for (let at = JPEG_FIRST_MARKER; at + SOF_WIDTH_OFFSET + 2 <= bytes.length; ) {
+    if (bytes[at] !== MARKER_PREFIX) {
+      return undefined
+    }
+    // Any number of 0xFF fill bytes may come before a marker.
+    while (bytes[at + 1] === MARKER_PREFIX) {
+      at++
+    }
+    const marker = bytes[at + 1]!
+    if (marker >= START_OF_FRAME_FIRST && marker <= START_OF_FRAME_LAST && !NOT_START_OF_FRAME.includes(marker)) {
+      return { height: view(bytes).getUint16(at + SOF_HEIGHT_OFFSET), width: view(bytes).getUint16(at + SOF_WIDTH_OFFSET) }
+    }
+    at += 2 + view(bytes).getUint16(at + 2)
+  }
+  return undefined
+}
+
+// The format and size of an image, from its first bytes and header alone.
+export const sniffImage = (bytes: Uint8Array): Sniffed | null => {
+  if (startsWith(bytes, PNG_SIGNATURE) && bytes.length > PNG_HEIGHT_OFFSET + 4) {
+    return { mediaType: 'image/png', width: view(bytes).getUint32(PNG_WIDTH_OFFSET), height: view(bytes).getUint32(PNG_HEIGHT_OFFSET) }
+  }
+  if (startsWith(bytes, GIF_SIGNATURE) && bytes.length > GIF_HEIGHT_OFFSET + 2) {
+    return { mediaType: 'image/gif', width: view(bytes).getUint16(GIF_WIDTH_OFFSET, true), height: view(bytes).getUint16(GIF_HEIGHT_OFFSET, true) }
+  }
+  const size = startsWith(bytes, JPEG_SIGNATURE) ? jpegSize(bytes) : undefined
+  return size === undefined ? null : { mediaType: 'image/jpeg', ...size }
+}
+
+const endsWith = (bytes: Uint8Array, ending: readonly number[], skip = 0) =>
+  ending.every((byte, i) => bytes[bytes.length - skip - ending.length + i] === byte)
+
+// Whether an image's last bytes are there: a paste read while Claude Code still writes it is not.
+export const isCompleteImage = (bytes: Uint8Array) => {
+  const sniffed = sniffImage(bytes)
+  if (sniffed === null) {
+    return false
+  }
+  if (sniffed.mediaType === 'image/png') {
+    return endsWith(bytes, PNG_END, PNG_CRC_BYTES)
+  }
+  return sniffed.mediaType === 'image/gif' ? bytes[bytes.length - 1] === GIF_TRAILER : endsWith(bytes, JPEG_END)
+}
+
+// A truncated or empty image decodes to no pixels; it is no picture.
+const isEmpty = (size: { width: number; height: number }) => size.width === 0 || size.height === 0
+
+// Decodes by content, whatever the file was called, within `limits` when given.
+export const decodeMedia = (bytes: Uint8Array, limits?: DecodeLimits): Decoded | null => {
+  const sniffed = sniffImage(bytes)
+  if (sniffed === null || isEmpty(sniffed)) {
+    return null
+  }
+  if (sniffed.mediaType === 'image/png') {
+    return { kind: 'png', width: sniffed.width, height: sniffed.height, png: bytes }
+  }
+  if (sniffed.mediaType === 'image/gif') {
+    const gif = decodeGif(bytes, limits ?? {})
+    return gif.frames.length === 0
+      ? null
+      : { kind: 'rgba', width: gif.width, height: gif.height, frames: gif.frames, sourceFrameCount: gif.sourceFrameCount }
+  }
+  const decoded = decodeJpeg(bytes)
+  const jpeg = limits === undefined ? decoded : fitWithin(decoded, limits.maxEdge)
+  return { kind: 'rgba', width: jpeg.width, height: jpeg.height, frames: [{ rgba: jpeg.rgba, delayMs: 0, index: 0, startMs: 0 }], sourceFrameCount: 1 }
+}
+
+// A still is a GIF's first frame alone.
+const STILL_FRAMES = 1
+
+// A still's pixels (a GIF's first frame), for scaling before it is sent on.
+export const decodeToRgba = (bytes: Uint8Array): Rgba | null => {
+  const sniffed = sniffImage(bytes)
+  if (sniffed === null || isEmpty(sniffed)) {
+    return null
+  }
+  if (sniffed.mediaType === 'image/png') {
+    return decodePng(bytes)
+  }
+  if (sniffed.mediaType === 'image/jpeg') {
+    return decodeJpeg(bytes)
+  }
+  const first = decodeGif(bytes, { maxFrames: STILL_FRAMES }).frames[0]
+  return first === undefined ? null : { width: sniffed.width, height: sniffed.height, rgba: first.rgba }
+}
+
+const MEDIA_TYPES: Record<string, string> = {
+  png: 'image/png',
+  gif: 'image/gif',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+}
+
+export const mediaTypeOf = (fileName: string): string | undefined =>
+  MEDIA_TYPES[fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase()]
+
+const DECODED_MEDIA_TYPES: readonly string[] = ['image/png', 'image/gif', 'image/jpeg'] satisfies Sniffed['mediaType'][]
+
+// Whether a file of this name is one this module decodes: PNG, GIF or JPEG.
+export const isDecodedName = (fileName: string) => DECODED_MEDIA_TYPES.includes(mediaTypeOf(fileName) ?? '')

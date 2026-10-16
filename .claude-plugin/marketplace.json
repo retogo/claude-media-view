@@ -1,0 +1,6 @@
+{
+  "name": "claude-media-view",
+  "description": "media-view: images and GIFs inline in Claude Code, for you and for Claude.",
+  "owner": { "name": "retogo" },
+  "plugins": [{ "name": "media-view", "source": "./" }]
+}

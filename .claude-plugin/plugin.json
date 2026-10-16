@@ -1,0 +1,9 @@
+{
+  "name": "media-view",
+  "version": "0.0.0",
+  "description": "Show images and GIFs inline in Claude Code — in the prompt, the transcript and a gallery — and let Claude see them too.",
+  "author": { "name": "retogo", "url": "https://github.com/retogo" },
+  "repository": "https://github.com/retogo/claude-media-view",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

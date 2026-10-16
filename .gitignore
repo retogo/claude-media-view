@@ -1,0 +1,6 @@
+# Laid by Claude Code each time it loads the mod
+.claude-plugin/types/
+
+# Personal Claude Code settings and instructions
+.claude/settings.local.json
+CLAUDE.local.md
