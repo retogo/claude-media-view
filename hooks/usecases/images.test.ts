@@ -64,6 +64,56 @@ describe('loadPicture', () => {
   })
 })
 
+describe('loadPicture of a converted format', () => {
+  // The first bytes of a WebP: RIFF, its size, WEBP.
+  const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20])
+  const webp = async () => ({ bytes: WEBP })
+  const CONVERTED = /^\/tmp\/claude-501\/media-view\/[0-9a-f]{16}\/source\.png$/
+
+  test('has the OS convert it to a PNG next to its frames, and draws that', async () => {
+    const { ports, runs } = fakePorts({}, {
+      readFile: async path => {
+        if (!CONVERTED.test(path)) {
+          throw new Error(`ENOENT: ${path}`)
+        }
+        return PNG
+      },
+    })
+
+    const picture = await loadPicture(ports, 'webp', webp)
+
+    expect(picture).toMatchObject({ width: 1, height: 1 })
+    expect(runs[2]?.argv).toEqual(['sips', '-s', 'format', 'png', expect.stringMatching(/\/source$/), '--out', expect.stringMatching(CONVERTED)])
+    expect(runs[1]?.init.stdin).toBe(WEBP.toBase64())
+  })
+
+  test('resolves null for good when the OS cannot convert it: no retry, no redraw', async () => {
+    let conversions = 0
+    const { ports, redraws } = fakePorts({}, {
+      run: async ({ argv }) => {
+        if (argv[0] === 'sips') {
+          conversions++
+          throw new Error('sips exited 13: Cannot extract image from file.')
+        }
+      },
+    })
+
+    expect(await loadPicture(ports, 'broken-webp', webp)).toBeNull()
+    expect(await loadPicture(ports, 'broken-webp', webp)).toBeNull()
+    expect(conversions).toBe(1)
+    expect(redraws()).toBe(0)
+  })
+
+  test('resolves null on Linux, which has no converter, without running anything', async () => {
+    const { ports, runs } = fakePorts({}, {
+      host: async () => ({ os: 'linux', tmpRoot: '/tmp/claude-1000', cacheRoot: '/tmp/claude-1000/media-view' }),
+    })
+
+    expect(await loadPicture(ports, 'webp-on-linux', webp)).toBeNull()
+    expect(runs).toEqual([])
+  })
+})
+
 describe('loadImageTag', () => {
   test('retries an image tag whose paste Claude Code has not written yet', async () => {
     let isWritten = false

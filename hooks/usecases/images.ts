@@ -1,7 +1,7 @@
 import { imageFileName } from '../domain/imageTags'
-import { decodeMedia, isCompleteImage, isDecodedName } from '../domain/media/decode'
+import { convertedFormatOf, decodeMedia, isCompleteImage, isDecodedName } from '../domain/media/decode'
 import { cacheDirectoryName, framePlan, type Picture, type Plan } from '../domain/media/frameCache'
-import { joinPath, makeDirectoryCommand, writeBytesCommand } from '../domain/platform'
+import { convertToPngCommand, joinPath, makeDirectoryCommand, writeBytesCommand } from '../domain/platform'
 import type { SourceImage } from '../domain/readOutput'
 import type { Host, Ports } from './ports'
 
@@ -14,6 +14,9 @@ const RETRY_DELAY_MS = 250
 const DRAWN_LIMITS = { maxEdge: 512, maxStillEdge: 1024, maxFrames: 200 }
 // Write processes running at once, across every picture (ADR 0007).
 const CONCURRENT_WRITES = 4
+// A converted format's source and the PNG the OS makes of it, beside the picture's numbered frames.
+const CONVERTED_SOURCE_FILE = 'source'
+const CONVERTED_PNG_FILE = 'source.png'
 
 // A source not there yet (a paste Claude Code is still writing): a failure to retry, not "no picture".
 class NotWrittenYet extends Error {}
@@ -48,18 +51,41 @@ const decodeOrNull = (source: SourceImage | null) => {
   }
 }
 
+// A source in a converted format, as the PNG the OS makes of it in the picture's directory; null where the OS
+// cannot convert it, which no retry changes (ADR 0029). Any other source is decoded as it is.
+const convertedOrAsIs = async (ports: Ports, host: Host, directory: string, source: SourceImage | null) => {
+  if (source === null || convertedFormatOf(source.bytes) === null) {
+    return source
+  }
+  const from = joinPath(host.os, directory, CONVERTED_SOURCE_FILE)
+  const to = joinPath(host.os, directory, CONVERTED_PNG_FILE)
+  const convert = convertToPngCommand(host.os, from, to)
+  if (convert === null) {
+    return null
+  }
+  await ports.run(makeDirectoryCommand(host.os, directory))
+  await ports.run(writeBytesCommand(host.os, from, source.bytes))
+  try {
+    await ports.run(convert)
+  } catch {
+    return null
+  }
+  return { bytes: await ports.readFile(to) }
+}
+
 // The picture's files, decoded once and kept until written. Undefined when the source is no picture or cannot be
 // decoded, which no retry changes; a load that throws (I/O, a paste not written yet) is the caller's to retry.
-const planFor = async (host: Host, key: string, load: () => Promise<SourceImage | null>) => {
+const planFor = async (ports: Ports, host: Host, key: string, load: () => Promise<SourceImage | null>) => {
   const planned = plans.get(key)
   if (planned !== undefined) {
     return planned
   }
-  const decoded = decodeOrNull(await load())
+  const directory = joinPath(host.os, host.cacheRoot, await cacheDirectoryName(key))
+  const decoded = decodeOrNull(await convertedOrAsIs(ports, host, directory, await load()))
   if (!decoded) {
     return undefined
   }
-  const plan = framePlan(host.os, joinPath(host.os, host.cacheRoot, await cacheDirectoryName(key)), decoded)
+  const plan = framePlan(host.os, directory, decoded)
   plans.set(key, plan)
   return plan
 }
@@ -75,7 +101,7 @@ const writePlan = async (ports: Ports, host: Host, { directory, writes, ...pictu
 const loadOrRetry = async (ports: Ports, key: string, load: () => Promise<SourceImage | null>): Promise<Picture | null> => {
   try {
     const host = await ports.host()
-    const plan = await planFor(host, key, load)
+    const plan = await planFor(ports, host, key, load)
     if (plan === undefined) {
       return null
     }

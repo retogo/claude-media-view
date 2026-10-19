@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { makeDirectoryCommand, openCommand, osFrom, readChunkCommand, tmpRootFor, writeBytesCommand } from './platform'
+import { convertToPngCommand, makeDirectoryCommand, openCommand, osFrom, readChunkCommand, tmpRootFor, writeBytesCommand } from './platform'
 
 describe('openCommand', () => {
   test('opens a file in the OS viewer', () => {
@@ -102,5 +102,31 @@ describe('readChunkCommand', () => {
       ],
       init: { env: { MEDIA_VIEW_PATH: 'C:\\p\\big.gif', MEDIA_VIEW_OFFSET: '0', MEDIA_VIEW_LENGTH: '2097152' } },
     })
+  })
+})
+
+describe('convertToPngCommand', () => {
+  test('converts with sips on macOS', () => {
+    expect(convertToPngCommand('mac', '/c/a b/source', '/c/a b/source.png')).toEqual({
+      argv: ['sips', '-s', 'format', 'png', '/c/a b/source', '--out', '/c/a b/source.png'],
+      init: {},
+    })
+  })
+
+  test('converts the first frame through the Windows Imaging Component on Windows', () => {
+    expect(convertToPngCommand('windows', 'C:\\c\\source', 'C:\\c\\source.png')).toEqual({
+      argv: [
+        'powershell.exe',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName PresentationCore; $i = [IO.File]::OpenRead($env:MEDIA_VIEW_PATH); $d = [Windows.Media.Imaging.BitmapDecoder]::Create($i, 'None', 'OnLoad'); $i.Close(); $e = New-Object Windows.Media.Imaging.PngBitmapEncoder; $e.Frames.Add($d.Frames[0]); $o = [IO.File]::Create($env:MEDIA_VIEW_OUT_PATH); $e.Save($o); $o.Close()",
+      ],
+      init: { env: { MEDIA_VIEW_PATH: 'C:\\c\\source', MEDIA_VIEW_OUT_PATH: 'C:\\c\\source.png' } },
+    })
+  })
+
+  test('has no converter on Linux', () => {
+    expect(convertToPngCommand('linux', '/c/source', '/c/source.png')).toBeNull()
   })
 })

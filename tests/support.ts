@@ -93,7 +93,8 @@ export const DRAFT_POLL_MS = 200
 
 // A macOS session `session-1` with 2.png and 3.png pasted (each `pasted`, base64) and `draft` in the composer,
 // which names both unless given, the plugin's store holding `stored`, and `files` there to read as the same bytes
-// besides; returns the argv of every process run and the store, to read what was kept. The draft is read once.
+// besides, or as their base64 in `contents`; returns the argv of every process run and the store, to read what
+// was kept. The draft is read once.
 export const startSession = async (
   $: Engine,
   on: On,
@@ -101,8 +102,9 @@ export const startSession = async (
     pasted = PNG_1X1,
     stored = {},
     files = [],
+    contents = {},
     draft = { text: '[Image #2] [Image #3]' },
-  }: { pasted?: string; stored?: Record<string, unknown>; files?: string[]; draft?: { text: string } } = {},
+  }: { pasted?: string; stored?: Record<string, unknown>; files?: string[]; contents?: Record<string, string>; draft?: { text: string } } = {},
 ) => {
   const runs: string[][] = []
   const copied: string[] = []
@@ -130,7 +132,7 @@ export const startSession = async (
   })
   on('fs.list', (_$, e) => ({ value: posixPath(e.path) === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : posixPath(e.path) === PASTE_CACHE ? [entry('2.png', 'file'), entry('3.png', 'file')] : [] }))
   on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === PASTE_CACHE || files.includes(posixPath(e.path)) }))
-  on('fs.read', () => ({ value: { base64: pasted } }))
+  on('fs.read', (_$, e) => ({ value: { base64: contents[posixPath(e.path)] ?? pasted } }))
   const store = new Map(Object.entries(stored))
   on('store.get', (_$, e) => ({ value: store.get(e.key) }))
   on('store.set', (_$, e) => (store.set(e.key, e.value), { value: undefined }))

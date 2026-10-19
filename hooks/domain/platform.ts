@@ -58,6 +58,26 @@ export const openCommand = (os: Os, path: string): Command =>
       : // xdg-open waits for some viewers to exit; in the background it returns at once.
         { argv: ['/bin/sh', '-c', `xdg-open "$${PATH_VARIABLE}" >/dev/null 2>&1 &`], init: { env: { [PATH_VARIABLE]: path } } }
 
+const OUT_PATH_VARIABLE = 'MEDIA_VIEW_OUT_PATH'
+
+// Converts an image the module does not decode to a PNG of its first frame, through the OS's own codecs; null
+// where the OS has none to rely on (ADR 0029).
+export const convertToPngCommand = (os: Os, from: string, to: string): Command | null => {
+  if (os === 'mac') {
+    return { argv: ['sips', '-s', 'format', 'png', from, '--out', to], init: {} }
+  }
+  if (os === 'windows') {
+    return {
+      argv: [
+        ...POWERSHELL,
+        `$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName PresentationCore; $i = [IO.File]::OpenRead($env:${PATH_VARIABLE}); $d = [Windows.Media.Imaging.BitmapDecoder]::Create($i, 'None', 'OnLoad'); $i.Close(); $e = New-Object Windows.Media.Imaging.PngBitmapEncoder; $e.Frames.Add($d.Frames[0]); $o = [IO.File]::Create($env:${OUT_PATH_VARIABLE}); $e.Save($o); $o.Close()`,
+      ],
+      init: { env: { [PATH_VARIABLE]: from, [OUT_PATH_VARIABLE]: to } },
+    }
+  }
+  return null
+}
+
 const OFFSET_VARIABLE = 'MEDIA_VIEW_OFFSET'
 const LENGTH_VARIABLE = 'MEDIA_VIEW_LENGTH'
 // dd reads whole blocks; chunks are aligned to them.

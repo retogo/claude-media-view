@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { decodeMedia, decodeToRgba, isCompleteImage, sniffImage } from './decode'
+import { convertedFormatOf, decodeMedia, decodeToRgba, isCompleteImage, sniffImage } from './decode'
 
 // 1x1 transparent PNG.
 const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -21,6 +21,25 @@ describe('sniffImage', () => {
 
   test('answers null for anything else', () => {
     expect(sniffImage(new TextEncoder().encode('RIFF....WEBPVP8 '))).toBeNull()
+  })
+})
+
+describe('convertedFormatOf', () => {
+  const bytesOf = (...parts: (string | number[])[]) =>
+    new Uint8Array(parts.flatMap(part => (typeof part === 'string' ? [...new TextEncoder().encode(part)] : part)))
+
+  test('tells WebP, HEIC and TIFF apart by their first bytes', () => {
+    expect(convertedFormatOf(bytesOf('RIFF', [0x24, 0, 0, 0], 'WEBPVP8 '))).toBe('webp')
+    expect(convertedFormatOf(bytesOf([0, 0, 0, 0x18], 'ftypheic', [0, 0, 0, 0]))).toBe('heic')
+    expect(convertedFormatOf(bytesOf([0, 0, 0, 0x18], 'ftypmif1', [0, 0, 0, 0]))).toBe('heic')
+    expect(convertedFormatOf(bytesOf('II', [0x2a, 0], [8, 0, 0, 0]))).toBe('tiff')
+    expect(convertedFormatOf(bytesOf('MM', [0, 0x2a], [0, 0, 0, 8]))).toBe('tiff')
+  })
+
+  test('answers null for what the module decodes itself, and for anything else', () => {
+    expect(convertedFormatOf(Uint8Array.fromBase64(PNG_1X1))).toBeNull()
+    expect(convertedFormatOf(bytesOf('RIFF', [0x24, 0, 0, 0], 'WAVEfmt '))).toBeNull()
+    expect(convertedFormatOf(bytesOf([0, 0, 0, 0x18], 'ftypavif', [0, 0, 0, 0]))).toBeNull()
   })
 })
 

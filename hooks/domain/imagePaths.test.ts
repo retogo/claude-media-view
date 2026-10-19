@@ -9,6 +9,12 @@ describe('imagePathsIn', () => {
     expect(imagePathsIn(text)).toEqual(['/var/folders/zr/T/screenshot-1.jpg', '/work/out/chart.PNG', '/tmp/a.gif'])
   })
 
+  test('finds paths of the formats the OS converts: WebP, HEIC and TIFF', () => {
+    const text = 'Wrote /out/a.webp, /out/b.HEIC, /out/c.heif, /out/d.tif and `/out/e f.tiff`.'
+
+    expect(imagePathsIn(text)).toEqual(['/out/a.webp', '/out/b.HEIC', '/out/c.heif', '/out/d.tif', '/out/e f.tiff'])
+  })
+
   test('lists each path once, in the order they first appear', () => {
     expect(imagePathsIn('/a/x.png then /b/y.jpeg then /a/x.png')).toEqual(['/a/x.png', '/b/y.jpeg'])
   })
@@ -31,7 +37,7 @@ describe('imagePathsIn', () => {
   })
 
   test('leaves URLs, relative paths and other formats alone', () => {
-    const text = 'See https://example.com/a.png, docs/b.png, ./c.png, /d/e.webp and /f/g.png.txt'
+    const text = 'See https://example.com/a.png, docs/b.png, ./c.png, /d/e.svg and /f/g.png.txt'
 
     expect(imagePathsIn(text)).toEqual([])
   })

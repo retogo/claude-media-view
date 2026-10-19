@@ -22,6 +22,19 @@ const JPEG_END = [0xff, 0xd9]
 // A PNG ends with its IEND chunk: type, then a four-byte CRC.
 const PNG_END = [0x49, 0x45, 0x4e, 0x44]
 const PNG_CRC_BYTES = 4
+// A WebP is a RIFF container whose form type, after the four-byte size, is WEBP.
+const RIFF_SIGNATURE = [0x52, 0x49, 0x46, 0x46]
+const WEBP_FORM = [0x57, 0x45, 0x42, 0x50]
+const RIFF_FORM_OFFSET = 8
+// A HEIC opens with an ISO media `ftyp` box, after the box's four-byte size, naming a HEIF major brand.
+const FTYP = [0x66, 0x74, 0x79, 0x70]
+const FTYP_OFFSET = 4
+const MAJOR_BRAND_OFFSET = 8
+const BRAND_BYTES = 4
+const HEIF_BRANDS = ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1']
+// A TIFF opens with its byte order, Intel or Motorola, and 42 in that order.
+const TIFF_INTEL_SIGNATURE = [0x49, 0x49, 0x2a, 0x00]
+const TIFF_MOTOROLA_SIGNATURE = [0x4d, 0x4d, 0x00, 0x2a]
 
 // `index` and `startMs` place the frame in its source, which may have had more frames.
 export type RgbaFrame = { rgba: Uint8Array; delayMs: number; index: number; startMs: number }
@@ -69,6 +82,23 @@ export const sniffImage = (bytes: Uint8Array): Sniffed | null => {
   }
   const size = startsWith(bytes, JPEG_SIGNATURE) ? jpegSize(bytes) : undefined
   return size === undefined ? null : { mediaType: 'image/jpeg', ...size }
+}
+
+// The formats the OS converts to PNG before the module decodes them (ADR 0029).
+export type ConvertedFormat = 'webp' | 'heic' | 'tiff'
+
+const startsWithAt = (bytes: Uint8Array, offset: number, signature: readonly number[]) => startsWith(bytes.subarray(offset), signature)
+
+// The converted format of an image, from its first bytes; null for any other file.
+export const convertedFormatOf = (bytes: Uint8Array): ConvertedFormat | null => {
+  if (startsWith(bytes, RIFF_SIGNATURE) && startsWithAt(bytes, RIFF_FORM_OFFSET, WEBP_FORM)) {
+    return 'webp'
+  }
+  if (startsWithAt(bytes, FTYP_OFFSET, FTYP)) {
+    const brand = new TextDecoder().decode(bytes.subarray(MAJOR_BRAND_OFFSET, MAJOR_BRAND_OFFSET + BRAND_BYTES))
+    return HEIF_BRANDS.includes(brand) ? 'heic' : null
+  }
+  return startsWith(bytes, TIFF_INTEL_SIGNATURE) || startsWith(bytes, TIFF_MOTOROLA_SIGNATURE) ? 'tiff' : null
 }
 
 const endsWith = (bytes: Uint8Array, ending: readonly number[], skip = 0) =>
