@@ -23,13 +23,13 @@ const mountGallery = async ($: Engine) => {
 }
 
 describe('/media-view settings', () => {
-  test('lists where media-view shows images, then how it plays GIFs, every one on by default', async ($, on) => {
+  test('lists where media-view shows images, how it plays GIFs, then which formats the OS converts, every one on by default', async ($, on) => {
     await startSession($, on)
 
     const pane = await mountSettings($)
 
     const lines = (await pane.findAll({})).flatMap(node =>
-      node.type === 'Button' ? [node.key] : node.type === 'Text' && ['Show media', 'GIFs'].includes(String(node.text)) ? [node.text] : [],
+      node.type === 'Button' ? [node.key] : node.type === 'Text' && ['Show media', 'GIFs', 'Formats'].includes(String(node.text)) ? [node.text] : [],
     )
     expect(lines).toEqual([
       'Show media',
@@ -39,7 +39,10 @@ describe('/media-view settings', () => {
       'setting-assistantMessages',
       'GIFs',
       'setting-animateGifs',
+      'Formats',
+      'setting-convertFormats',
     ])
+    expect(await pane.find({ type: 'Button', key: 'setting-convertFormats', text: '[x] Convert WebP, HEIC and TIFF through the OS' })).toBeDefined()
     expect(await pane.find({ type: 'Button', key: 'setting-toolCalls', text: '[x] Under Claude’s tool calls' })).toBeDefined()
     expect(await pane.find({ type: 'Button', key: 'setting-userMessages', text: '[x] Under prompts you sent' })).toBeDefined()
   })

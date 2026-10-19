@@ -21,6 +21,10 @@ const CONVERTED_PNG_FILE = 'source.png'
 // A source not there yet (a paste Claude Code is still writing): a failure to retry, not "no picture".
 class NotWrittenYet extends Error {}
 
+// A converted format while the person has conversion turned off: no picture for now, kept for no later draw, so
+// one after it is turned on converts (ADR 0029).
+class ConversionTurnedOff extends Error {}
+
 const pictures = new Map<string, Promise<Picture | null>>()
 const plans = new Map<string, Plan>()
 const failures = new Map<string, number>()
@@ -64,6 +68,9 @@ const convertedOrAsIs = async (ports: Ports, host: Host, directory: string, sour
   const convert = convertToPngCommand(host.os, from, to)
   if (convert === null || converted.width * converted.height > MAX_CONVERTED_PIXELS) {
     return null
+  }
+  if (!(await ports.convertsFormats())) {
+    throw new ConversionTurnedOff()
   }
   await ports.run(makeDirectoryCommand(host.os, directory))
   await ports.run(writeBytesCommand(host.os, from, source.bytes))
@@ -110,7 +117,11 @@ const loadOrRetry = async (ports: Ports, key: string, load: () => Promise<Source
     const picture = await writePlan(ports, host, plan)
     plans.delete(key)
     return picture
-  } catch {
+  } catch (error) {
+    if (error instanceof ConversionTurnedOff) {
+      pictures.delete(key)
+      return null
+    }
     const failed = (failures.get(key) ?? 0) + 1
     failures.set(key, failed)
     if (failed <= MAX_RETRIES) {

@@ -1,8 +1,10 @@
 // Where media-view shows images, each named after the Claude Code component it draws in, and how it plays GIFs
-// (ADR 0027), each the person's to turn off in the settings pane.
+// (ADR 0027), and whether the OS converts the formats media-view does not decode (ADR 0029), each the person's to
+// turn off in the settings pane.
 export const SHOW_SETTING_KEYS = ['abovePrompt', 'userMessages', 'toolCalls', 'assistantMessages'] as const
 export const PLAY_SETTING_KEYS = ['animateGifs'] as const
-export const SETTING_KEYS = [...SHOW_SETTING_KEYS, ...PLAY_SETTING_KEYS] as const
+export const FORMAT_SETTING_KEYS = ['convertFormats'] as const
+export const SETTING_KEYS = [...SHOW_SETTING_KEYS, ...PLAY_SETTING_KEYS, ...FORMAT_SETTING_KEYS] as const
 
 export type SettingKey = (typeof SETTING_KEYS)[number]
 
@@ -15,6 +17,7 @@ export type ShowSetting = (typeof SHOW_SETTING_KEYS)[number]
 export const SETTING_SECTIONS: readonly { title: string; keys: readonly SettingKey[] }[] = [
   { title: 'Show media', keys: SHOW_SETTING_KEYS },
   { title: 'GIFs', keys: PLAY_SETTING_KEYS },
+  { title: 'Formats', keys: FORMAT_SETTING_KEYS },
 ]
 
 export const SETTING_LABELS: Record<SettingKey, string> = {
@@ -23,6 +26,7 @@ export const SETTING_LABELS: Record<SettingKey, string> = {
   toolCalls: 'Under Claude’s tool calls',
   assistantMessages: 'Under Claude’s replies',
   animateGifs: 'Animate GIFs',
+  convertFormats: 'Convert WebP, HEIC and TIFF through the OS',
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -31,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   toolCalls: true,
   assistantMessages: true,
   animateGifs: true,
+  convertFormats: true,
 }
 
 // Settings from what the plugin's store holds, a file the person or an older version may have written: a setting

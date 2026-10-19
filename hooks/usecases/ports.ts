@@ -27,6 +27,8 @@ export type Ports = {
   exists: (path: string) => Promise<boolean>
   // Rejects when the process cannot start or exits non-zero.
   run: (command: Command) => Promise<void>
+  // Whether the person lets the OS convert the formats media-view does not decode (ADR 0029).
+  convertsFormats: () => Promise<boolean>
   // What the gallery saw this session, kept where a hot reload of the module does not reach (ADR 0021); the first
   // record of an image or a tag stands.
   rememberSeen: (image: SeenImage) => Promise<void>

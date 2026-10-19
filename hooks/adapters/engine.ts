@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import { isWindows, joinPath, osFrom, READ_BLOCK_BYTES, readChunkCommand, tmpRootFor } from '../domain/platform'
+import { DEFAULT_SETTINGS } from '../domain/settings'
 import type { Host, Ports, SeenImage } from '../usecases/ports'
 
 const CACHE_DIRECTORY = 'media-view'
@@ -16,6 +17,7 @@ const CHUNK_BYTES = 32 * READ_BLOCK_BYTES
 const seenImages = atom({ plugin: 'media-view', key: 'seenImages' } as const, [])
 const imageTagRows = atom({ plugin: 'media-view', key: 'imageTagRows' } as const, {})
 const shownAt = atom({ plugin: 'media-view', key: 'shownAt' } as const, {})
+const settings = atom({ plugin: 'media-view', key: 'settings' } as const, DEFAULT_SETTINGS)
 
 let host: Promise<Host> | undefined
 
@@ -106,6 +108,7 @@ export function enginePorts($: EngineInterface): Ports {
         throw new Error(`${argv[0]} exited ${ran.exitCode}: ${ran.stderr.trim()}`)
       }
     },
+    convertsFormats: async () => (await read($, settings)).convertFormats,
     requestRedraw: afterMs => {
       if (afterMs === undefined) {
         $.ui.invalidate('ui.render')

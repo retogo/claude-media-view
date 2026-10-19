@@ -18,6 +18,7 @@ declare module 'claude-code' {
         toolCalls: boolean
         assistantMessages: boolean
         animateGifs: boolean
+        convertFormats: boolean
       }
       draftImageNumbers: number[]
       mediaViewScrollOffset: number

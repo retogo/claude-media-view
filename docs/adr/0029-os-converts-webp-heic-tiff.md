@@ -14,6 +14,7 @@ ADR 0002 left WebP, HEIC and TIFF to the OS's converters, unbuilt, so such files
 3. Have the converter also bound the size, as `sips -Z` does, to keep a large photo's PNG small.
 4. Convert only files Read may read, leaving MCP tools' images, which a tool may have fetched from the web, unconverted.
 5. Convert only once the person turns conversion on in the settings.
+6. Convert unless the person turns conversion off in the settings.
 
 ## Decision
 
@@ -25,7 +26,9 @@ A conversion that fails, or whose PNG cannot be read back (one past the size med
 
 Option 3 is not taken: `sips -Z` enlarges a small image as readily as it shrinks a large one.
 
-Options 4 and 5 are not taken. Converting hands bytes that arrive unopened, an MCP tool's image from the web among them, to the OS's native decoders, which have had flaws exploited by such files (CVE-2023-4863 in libwebp, reached through ImageIO). An exploit runs as the person, as Claude Code does, and needs a flaw an up-to-date OS has not fixed. Leaving MCP images out narrows little, since files Read may read are often downloads; a setting off by default leaves the formats undrawn for most people.
+Option 6, over 4 and 5. Converting hands bytes that arrive unopened, an MCP tool's image from the web among them, to the OS's native decoders, which have had flaws exploited by such files (CVE-2023-4863 in libwebp, reached through ImageIO). An exploit runs as the person, as Claude Code does, and needs a flaw an up-to-date OS has not fixed. Leaving MCP images out narrows little, since files Read may read are often downloads; a setting off by default leaves the formats undrawn for most people. So conversion is on by default and the person's to turn off, one setting for every converted format: what sets these formats apart is the native decoder, not the format.
+
+While conversion is off, a converted format shows no picture and is not remembered as having none: once it is turned on, the next draw converts it. Pictures already converted stay, as the decoder has already read them.
 
 Replies name these formats by `.webp`, `.heic`, `.heif`, `.tif` and `.tiff`. Pastes and the `frames` tool stay with PNG, GIF and JPEG: a paste's completeness is judged from bytes the module decodes, and the frames tool hands the model formats the API takes.
 

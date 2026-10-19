@@ -132,6 +132,25 @@ describe('loadPicture of a converted format', () => {
     expect(redraws()).toBe(0)
   })
 
+  test('resolves null while the person has conversion turned off, and converts once it is turned on', async () => {
+    let isConverting = false
+    const { ports, runs } = fakePorts({}, {
+      convertsFormats: async () => isConverting,
+      readFile: async path => {
+        if (!CONVERTED.test(path)) {
+          throw new Error(`ENOENT: ${path}`)
+        }
+        return PNG
+      },
+    })
+
+    expect(await loadPicture(ports, 'webp-off', webp)).toBeNull()
+    expect(runs).toEqual([])
+    isConverting = true
+
+    expect(await loadPicture(ports, 'webp-off', webp)).toMatchObject({ width: 1, height: 1 })
+  })
+
   test('resolves null on Linux, which has no converter, without running anything', async () => {
     const { ports, runs } = fakePorts({}, {
       host: async () => ({ os: 'linux', tmpRoot: '/tmp/claude-1000', cacheRoot: '/tmp/claude-1000/media-view' }),

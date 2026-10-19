@@ -37,6 +37,7 @@ export const fakePorts = (files: Record<string, Uint8Array> = {}, overrides: Par
     run: async command => {
       runs.push(command)
     },
+    convertsFormats: async () => true,
     requestRedraw: () => {
       redraws++
     },
