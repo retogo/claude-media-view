@@ -60,11 +60,47 @@ export const openCommand = (os: Os, path: string): Command =>
 
 const OUT_PATH_VARIABLE = 'MEDIA_VIEW_OUT_PATH'
 
-// Converts an image the module does not decode to a PNG of its first frame, through the OS's own codecs; null
-// where the OS has none to rely on (ADR 0029).
-export const convertToPngCommand = (os: Os, from: string, to: string): Command | null => {
+// What turns a converted format into a PNG or a GIF: the OS's own codecs, or an ffmpeg the person installed (ADR 0030).
+export type Converter = 'os' | 'ffmpeg'
+
+export type Conversion = { from: string; to: string; isAnimated: boolean }
+
+// ImageIO writes an animated WebP's frames as a looping GIF, each held as long as the WebP holds it. JXA knows no
+// type for ImageIO's key constants, so the keys are written as the strings they stand for (ADR 0029).
+const IMAGE_IO_GIF_SCRIPT = `ObjC.import('Foundation')
+ObjC.import('ImageIO')
+const gif = (key, value) => $.NSDictionary.dictionaryWithObjectForKey($.NSDictionary.dictionaryWithObjectForKey(value, key), '{GIF}')
+function run([from, to]) {
+  const source = $.CGImageSourceCreateWithURL($.NSURL.fileURLWithPath(from), $())
+  const count = $.CGImageSourceGetCount(source)
+  const destination = $.CGImageDestinationCreateWithURL($.NSURL.fileURLWithPath(to), $('com.compuserve.gif'), count, $())
+  $.CGImageDestinationSetProperties(destination, gif('LoopCount', $(0)))
+  for (let i = 0; i < count; i++) {
+    const webp = ObjC.castRefToObject($.CGImageSourceCopyPropertiesAtIndex(source, i, $())).objectForKey('{WebP}')
+    $.CGImageDestinationAddImageFromSource(destination, source, i, gif('DelayTime', webp.objectForKey('UnclampedDelayTime')))
+  }
+  if (!$.CGImageDestinationFinalize(destination)) {
+    throw new Error('ImageIO wrote no GIF')
+  }
+}`
+// One palette made for the whole animation keeps its colours closer than GIF's default palette.
+const FFMPEG_GIF_FILTER = 'split[a][b];[a]palettegen[p];[b][p]paletteuse'
+const FFMPEG = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i']
+
+// Whether a converter keeps an animation, as a GIF: ffmpeg anywhere, the OS on macOS only.
+export const convertsAnimation = (os: Os, converter: Converter) => converter === 'ffmpeg' || os === 'mac'
+
+// Converts an image the module does not decode to a PNG of its first frame, or an animation to a GIF; null where
+// the OS has no codecs to rely on (ADR 0029).
+export const convertCommand = (os: Os, converter: Converter, { from, to, isAnimated }: Conversion): Command | null => {
+  if (converter === 'ffmpeg') {
+    const output = isAnimated ? ['-filter_complex', FFMPEG_GIF_FILTER, '-loop', '0'] : ['-frames:v', '1', '-update', '1']
+    return { argv: [...FFMPEG, from, ...output, to], init: {} }
+  }
   if (os === 'mac') {
-    return { argv: ['sips', '-s', 'format', 'png', from, '--out', to], init: {} }
+    return isAnimated
+      ? { argv: ['osascript', '-l', 'JavaScript', '-e', IMAGE_IO_GIF_SCRIPT, from, to], init: {} }
+      : { argv: ['sips', '-s', 'format', 'png', from, '--out', to], init: {} }
   }
   if (os === 'windows') {
     return {

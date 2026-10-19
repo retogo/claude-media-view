@@ -44,11 +44,12 @@ Each folder names the event its usecases answer; the file names the matcher's va
 | paste cache   | The folder Claude Code writes pasted images to: `<tmp root>/<project>/<session>/images/<n>.<ext>`    |
 | picture       | A decoded image on disk: its size and its frames, each a file source for `Image`                     |
 | frame cache   | `<tmp root>/media-view/<key hash>/`, where pictures are written once                                 |
-| converted format | WebP, HEIC or TIFF: an image the OS converts to PNG in the frame cache before it is decoded (macOS, Windows) |
+| converted format | WebP, HEIC or TIFF: an image its converter turns into a PNG, or an animated WebP into a GIF, in the frame cache before it is decoded |
+| converter | What converts a converted format: the OS's codecs (macOS, Windows), or an ffmpeg the person installed, on any OS |
 | cell box      | The columns and rows of terminal cells a picture is drawn in                                         |
 | seen image    | An image the transcript drew from a tool's result, kept with the row (`requestId`) that drew it and its path (a Read's) or its tool (an MCP tool's), and the show setting it was drawn under |
 | shown at      | When an image showed in the chat: its tool call answered, or its prompt was sent from the composer |
-| settings      | Where media-view shows images, whether GIFs play, and whether the OS converts the converted formats, each on or off; kept in the plugin's store |
+| settings      | Where media-view shows images, whether GIFs play, whether the converted formats are converted, and whether by ffmpeg, each on or off; kept in the plugin's store |
 | show setting  | A setting that lets images be shown in one place (above the prompt, under sent prompts, tool calls or replies), in the chat and in the gallery alike |
 | blit loop     | A timer swapping a GIF's frames on one keyed `Image` until stopped                                   |
 | terminal deny | A blit refused because the terminal draws the `Image`'s alt here, not because it was not mounted yet |

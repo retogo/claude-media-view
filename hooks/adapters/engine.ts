@@ -41,6 +41,17 @@ function sessionHost($: EngineInterface) {
   return host
 }
 
+let ffmpeg: Promise<boolean> | undefined
+
+// Whether `ffmpeg -version` runs, asked once per session: an ffmpeg missing from PATH fails to start.
+function sessionFfmpeg($: EngineInterface) {
+  ffmpeg ??= $.process.run(['ffmpeg', '-version']).then(
+    ran => ran.exitCode === 0,
+    () => false,
+  )
+  return ffmpeg
+}
+
 // Reads a file of any size up to MAX_FILE_BYTES: small ones whole, larger ones in base64 chunks (ADR 0005).
 async function readWhole($: EngineInterface, path: string) {
   const { size } = await $.fs.stat(path)
@@ -109,6 +120,8 @@ export function enginePorts($: EngineInterface): Ports {
       }
     },
     convertsFormats: async () => (await read($, settings)).convertFormats,
+    prefersFfmpeg: async () => (await read($, settings)).preferFfmpeg,
+    isFfmpegInstalled: () => sessionFfmpeg($),
     requestRedraw: afterMs => {
       if (afterMs === undefined) {
         $.ui.invalidate('ui.render')

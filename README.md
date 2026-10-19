@@ -9,7 +9,7 @@ A Claude Code mod that shows images and GIFs inline in the terminal — and lets
 - **Frames for Claude**: the `frames` tool hands Claude every frame of a GIF (sampled to at most 12 by default), so it sees the motion and not only the first frame.
 - **Gallery**: `/media-view` opens a pane with every image the chat shows, newest first, and when it showed, with buttons to copy its path or open it. Turning a place off in the settings takes its images out of the chat and the gallery alike, also for the images already shown.
 - **PNG, GIF and JPEG on macOS, Linux and Windows** with built-in decoders: nothing to install, no ffmpeg.
-- **WebP, HEIC and TIFF on macOS and Windows** under tool calls and replies, converted by the OS's own codecs, as their first frame. The OS's decoders are native code, so a setting turns this off.
+- **WebP, HEIC and TIFF on macOS and Windows** under tool calls and replies, converted by the OS's own codecs; animated WebPs play on macOS. Where ffmpeg is installed it converts instead, on Linux too, and animated WebPs play everywhere. The decoders are native code, so a setting turns conversion off.
 
 No network access, no telemetry, no self-update.
 
@@ -29,12 +29,12 @@ claude plugin install media-view --marketplace retogo/claude-media-view
 
 ## Use
 
-| Command                | Does                                                                                               |
-| ---------------------- | -------------------------------------------------------------------------------------------------- |
-| `/media-view`          | Opens the gallery, with the settings as a tab beside it                                            |
-| `/media-view settings` | Shows the settings tab: each place images show, on or off, GIF animation, and conversion by the OS |
-| `/media-view still`    | Shows transcript GIFs as still pictures                                                            |
-| `/media-view animate`  | Plays transcript GIFs again (the default)                                                          |
+| Command                | Does                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `/media-view`          | Opens the gallery, with the settings as a tab beside it                                                      |
+| `/media-view settings` | Shows the settings tab: each place images show, on or off, GIF animation, and conversion by the OS or ffmpeg |
+| `/media-view still`    | Shows transcript GIFs as still pictures                                                                      |
+| `/media-view animate`  | Plays transcript GIFs again (the default)                                                                    |
 
 Every setting is on by default; the settings are kept for later sessions. An image file named in a reply is drawn only where the Read tool may read it without asking.
 

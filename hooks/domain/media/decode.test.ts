@@ -41,12 +41,20 @@ describe('sniffConverted', () => {
   const TIFF_MOTOROLA = bytesOf('MM', [0, 0x2a], [0, 0, 0, 8], [0, 2], [1, 0, 0, 3, 0, 0, 0, 1, 0, 3, 0, 0], [1, 1, 0, 4, 0, 0, 0, 1, 0, 0, 0, 2], [0, 0, 0, 0])
 
   test('tells WebP, HEIC and TIFF apart by their first bytes, with the size their header declares', () => {
-    expect(sniffConverted(Uint8Array.fromBase64(WEBP_LOSSY))).toEqual({ format: 'webp', width: 3, height: 2 })
-    expect(sniffConverted(Uint8Array.fromBase64(WEBP_LOSSLESS))).toEqual({ format: 'webp', width: 3, height: 2 })
-    expect(sniffConverted(Uint8Array.fromBase64(WEBP_EXTENDED))).toEqual({ format: 'webp', width: 3, height: 2 })
-    expect(sniffConverted(Uint8Array.fromBase64(HEIC))).toEqual({ format: 'heic', width: 4, height: 2 })
-    expect(sniffConverted(Uint8Array.fromBase64(TIFF_INTEL))).toEqual({ format: 'tiff', width: 3, height: 2 })
-    expect(sniffConverted(TIFF_MOTOROLA)).toEqual({ format: 'tiff', width: 3, height: 2 })
+    expect(sniffConverted(Uint8Array.fromBase64(WEBP_LOSSY))).toEqual({ format: 'webp', width: 3, height: 2, frames: 1 })
+    expect(sniffConverted(Uint8Array.fromBase64(WEBP_LOSSLESS))).toEqual({ format: 'webp', width: 3, height: 2, frames: 1 })
+    expect(sniffConverted(Uint8Array.fromBase64(WEBP_EXTENDED))).toEqual({ format: 'webp', width: 3, height: 2, frames: 1 })
+    expect(sniffConverted(Uint8Array.fromBase64(HEIC))).toEqual({ format: 'heic', width: 4, height: 2, frames: 1 })
+    expect(sniffConverted(Uint8Array.fromBase64(TIFF_INTEL))).toEqual({ format: 'tiff', width: 3, height: 2, frames: 1 })
+    expect(sniffConverted(TIFF_MOTOROLA)).toEqual({ format: 'tiff', width: 3, height: 2, frames: 1 })
+  })
+
+  test('counts the frames of an animated WebP', () => {
+    // 64x64, three frames of 200 ms, saved by Pillow.
+    const WEBP_ANIMATED =
+      'UklGRmwBAABXRUJQVlA4WAoAAAACAAAAPwAAPwAAQU5JTQYAAAAAAAAAAABBTk1GagAAAAAAAAAAAD8AAD8AAMgAAAJWUDggUgAAALAEAJ0BKkAAQAA+bTaZSSQjIqEiCACADYlpBigAmQH4AAiBktlWJj2n15tXQAAA/vCbQ//+QXLC65Gv//yA/5Af8gP/5AflTZnMXkaKqgnwgABBTk1GZgAAAAAAAAAAAD8AAD8AAMgAAABWUDggTgAAADQEAJ0BKkAAQAA+bTKSSQIgAADYlpANWqgH4AfgACLt0ZQYR2nUfk1bsAD+5Yc//7WgODVf5n//+++FEduv9CX6YXsil/xM5+NS/wXAAEFOTUZgAAAAAAAAAAAAPwAAPwAAyAAAAFZQOCBIAAAA1AMAnQEqQABAAD5tMpJJAiAAANiWkGKACZAAfxrvCBpcJTqYto+AAP75Hdv//kB//kB//kB//ID//iF3shz8Hdpv277cgAAA'
+
+    expect(sniffConverted(Uint8Array.fromBase64(WEBP_ANIMATED))).toEqual({ format: 'webp', width: 64, height: 64, frames: 3 })
   })
 
   test('takes the largest size a HEIC declares, as its tiles and thumbnails each declare their own', () => {
@@ -56,6 +64,7 @@ describe('sniffConverted', () => {
       format: 'heic',
       width: 4032,
       height: 3024,
+      frames: 1,
     })
   })
 

@@ -29,6 +29,10 @@ export type Ports = {
   run: (command: Command) => Promise<void>
   // Whether the person lets the OS convert the formats media-view does not decode (ADR 0029).
   convertsFormats: () => Promise<boolean>
+  // Whether the person would rather ffmpeg convert them, where it is installed (ADR 0030).
+  prefersFfmpeg: () => Promise<boolean>
+  // Whether an ffmpeg runs from the session's PATH, found once per session.
+  isFfmpegInstalled: () => Promise<boolean>
   // What the gallery saw this session, kept where a hot reload of the module does not reach (ADR 0021); the first
   // record of an image or a tag stands.
   rememberSeen: (image: SeenImage) => Promise<void>

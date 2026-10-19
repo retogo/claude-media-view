@@ -38,6 +38,11 @@ const VP8L_SIZE_BITS = 14
 const VP8L_SIZE_MASK = 0x3fff
 const VP8X_WIDTH_OFFSET = 24
 const VP8X_HEIGHT_OFFSET = 27
+// An animated WebP sets the animation bit of its `VP8X` flags and holds a chunk per frame; every chunk is a name, a
+// little-endian size and its data, padded to an even length.
+const VP8X_FLAGS_OFFSET = 20
+const VP8X_ANIMATION_FLAG = 0x02
+const RIFF_CHUNK_HEADER_BYTES = 8
 // A HEIC opens with an ISO media `ftyp` box, after the box's four-byte size, naming a HEIF major brand. An `ispe`
 // box declares an image's size as two 32-bit numbers after its version and flags.
 const FTYP = [0x66, 0x74, 0x79, 0x70]
@@ -109,10 +114,12 @@ export const sniffImage = (bytes: Uint8Array): Sniffed | null => {
 // The formats the OS converts to PNG before the module decodes them (ADR 0029).
 export type ConvertedFormat = 'webp' | 'heic' | 'tiff'
 
-export type SniffedConverted = { format: ConvertedFormat; width: number; height: number }
+export type SniffedConverted = { format: ConvertedFormat; width: number; height: number; frames: number }
 
-// The pixels a converted format may declare and still be handed to the OS: the cap PNG, GIF and JPEG are held to.
+// The pixels a converted format may declare and still be handed to the OS, per frame and across its frames: the
+// caps PNG, GIF and JPEG are held to.
 export const MAX_CONVERTED_PIXELS = 24_000_000
+export const MAX_CONVERTED_TOTAL_PIXELS = 20 * MAX_CONVERTED_PIXELS
 
 type Size = { width: number; height: number }
 
@@ -177,24 +184,38 @@ const tiffSize = (bytes: Uint8Array, isLittleEndian: boolean): Size | undefined 
   return width === undefined || height === undefined ? undefined : { width, height }
 }
 
-const formatAndSize = (bytes: Uint8Array): [ConvertedFormat, Size | undefined] | null => {
+// A WebP's frames: one, or the `ANMF` chunks of one whose `VP8X` flags it animated.
+const webpFrames = (bytes: Uint8Array) => {
+  if (chunkName(bytes, WEBP_CHUNK_OFFSET) !== 'VP8X' || ((bytes[VP8X_FLAGS_OFFSET] ?? 0) & VP8X_ANIMATION_FLAG) === 0) {
+    return 1
+  }
+  let frames = 0
+  for (let at = WEBP_CHUNK_OFFSET; at + RIFF_CHUNK_HEADER_BYTES <= bytes.length; ) {
+    frames += chunkName(bytes, at) === 'ANMF' ? 1 : 0
+    const size = view(bytes).getUint32(at + FOURCC_BYTES, true)
+    at += RIFF_CHUNK_HEADER_BYTES + size + (size % 2)
+  }
+  return frames
+}
+
+const formatAndShape = (bytes: Uint8Array): [ConvertedFormat, Size | undefined, number] | null => {
   if (startsWith(bytes, RIFF_SIGNATURE) && startsWithAt(bytes, RIFF_FORM_OFFSET, WEBP_FORM)) {
-    return ['webp', webpSize(bytes)]
+    return ['webp', webpSize(bytes), webpFrames(bytes)]
   }
   if (startsWithAt(bytes, FTYP_OFFSET, FTYP)) {
-    return HEIF_BRANDS.includes(chunkName(bytes, MAJOR_BRAND_OFFSET)) ? ['heic', heicSize(bytes)] : null
+    return HEIF_BRANDS.includes(chunkName(bytes, MAJOR_BRAND_OFFSET)) ? ['heic', heicSize(bytes), 1] : null
   }
   if (startsWith(bytes, TIFF_INTEL_SIGNATURE) || startsWith(bytes, TIFF_MOTOROLA_SIGNATURE)) {
-    return ['tiff', tiffSize(bytes, startsWith(bytes, TIFF_INTEL_SIGNATURE))]
+    return ['tiff', tiffSize(bytes, startsWith(bytes, TIFF_INTEL_SIGNATURE)), 1]
   }
   return null
 }
 
-// The converted format of an image and the size its header declares, so that its cost is known before the OS
-// decodes it (ADR 0012); null for any other file, and where no size can be read.
+// The converted format of an image, the size its header declares and its frames, so that its cost is known before
+// the OS decodes it (ADR 0012); null for any other file, and where no size or frame can be read.
 export const sniffConverted = (bytes: Uint8Array): SniffedConverted | null => {
-  const [format, size] = formatAndSize(bytes) ?? []
-  return format === undefined || size === undefined ? null : { format, ...size }
+  const [format, size, frames] = formatAndShape(bytes) ?? []
+  return format === undefined || size === undefined || !frames ? null : { format, ...size, frames }
 }
 
 const endsWith = (bytes: Uint8Array, ending: readonly number[], skip = 0) =>

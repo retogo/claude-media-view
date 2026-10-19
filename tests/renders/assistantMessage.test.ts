@@ -46,6 +46,36 @@ describe('AssistantMessage', () => {
     expect(runs.find(argv => argv[0] === 'sips')).toEqual(['sips', '-s', 'format', 'png', expect.stringMatching(/\/source$/), '--out', expect.stringMatching(/\/source\.png$/)])
   })
 
+  test('converts with ffmpeg where it runs from PATH, and with the OS once the person stops preferring it', async ($, on) => {
+    const PHOTO = '/work/out/photo.webp'
+    // 3x2 lossy WebP.
+    const WEBP = 'UklGRjYAAABXRUJQVlA4ICoAAACQAQCdASoDAAIAAsBMJaACdLoAA5gA/u2QP4hd7G2//PTP62/j/xkAAAA='
+    const mountReply = (requestId: string, path: string) =>
+      $.ui.mount({
+        plugin: PLUGIN,
+        surface: 'terminal',
+        component: 'AssistantMessage',
+        props: { text: `The photo is at ${path}.`, isFirstOfReply: true },
+        requestId,
+        viewport: VIEWPORT,
+      })
+    on('tool.check', { tool: 'Read' }, () => ({ decision: 'allow' }))
+    const OTHER = '/work/out/other.webp'
+    const { runs } = await startSession($, on, { files: [PHOTO, OTHER], contents: { [PHOTO]: WEBP, [OTHER]: WEBP }, hasFfmpeg: true })
+
+    expect(await (await mountReply('reply-ffmpeg', PHOTO)).find({ type: 'Image' })).toBeDefined()
+    expect(runs.filter(argv => ['ffmpeg', 'sips'].includes(argv[0]!)).map(argv => argv.at(-1) === '-version' ? 'ffmpeg -version' : argv[0])).toEqual(['ffmpeg -version', 'ffmpeg'])
+
+    await runCommand($, 'settings')
+    const settings = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'media-view-settings' })
+    await settings.press({ key: 'setting-preferFfmpeg' })
+    const runsBefore = runs.length
+    await mountReply('reply-os', OTHER)
+
+    expect(runs.slice(runsBefore).map(argv => argv[0])).toContain('sips')
+    expect(runs.slice(runsBefore).map(argv => argv[0])).not.toContain('ffmpeg')
+  })
+
   test('hands a WebP the reply names to no converter while conversion is off, and draws it once turned on', async ($, on) => {
     const PHOTO = '/work/out/photo.webp'
     // 3x2 lossy WebP.

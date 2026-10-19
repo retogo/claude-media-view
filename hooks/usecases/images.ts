@@ -1,7 +1,7 @@
 import { imageFileName } from '../domain/imageTags'
-import { decodeMedia, isCompleteImage, isDecodedName, MAX_CONVERTED_PIXELS, sniffConverted } from '../domain/media/decode'
+import { decodeMedia, isCompleteImage, isDecodedName, MAX_CONVERTED_PIXELS, MAX_CONVERTED_TOTAL_PIXELS, sniffConverted } from '../domain/media/decode'
 import { cacheDirectoryName, framePlan, type Picture, type Plan } from '../domain/media/frameCache'
-import { convertToPngCommand, joinPath, makeDirectoryCommand, writeBytesCommand } from '../domain/platform'
+import { convertCommand, convertsAnimation, joinPath, makeDirectoryCommand, writeBytesCommand, type Converter } from '../domain/platform'
 import type { SourceImage } from '../domain/readOutput'
 import type { Host, Ports } from './ports'
 
@@ -14,16 +14,17 @@ const RETRY_DELAY_MS = 250
 const DRAWN_LIMITS = { maxEdge: 512, maxStillEdge: 1024, maxFrames: 200 }
 // Write processes running at once, across every picture (ADR 0007).
 const CONCURRENT_WRITES = 4
-// A converted format's source and the PNG the OS makes of it, beside the picture's numbered frames.
+// A converted format's source and what its converter makes of it, beside the picture's numbered frames.
 const CONVERTED_SOURCE_FILE = 'source'
 const CONVERTED_PNG_FILE = 'source.png'
+const CONVERTED_GIF_FILE = 'source.gif'
 
 // A source not there yet (a paste Claude Code is still writing): a failure to retry, not "no picture".
 class NotWrittenYet extends Error {}
 
-// A converted format while the person has conversion turned off: no picture for now, kept for no later draw, so
-// one after it is turned on converts (ADR 0029).
-class ConversionTurnedOff extends Error {}
+// A converted format while the settings leave it no converter (conversion off, or no ffmpeg where the OS has none):
+// no picture for now, kept for no later draw, so one after the settings change converts (ADR 0029).
+class NotConvertedNow extends Error {}
 
 const pictures = new Map<string, Promise<Picture | null>>()
 const plans = new Map<string, Plan>()
@@ -55,22 +56,30 @@ const decodeOrNull = (source: SourceImage | null) => {
   }
 }
 
-// A source in a converted format, as the PNG the OS makes of it in the picture's directory; null where the OS
-// cannot convert it or reading the PNG back fails, which no retry changes, and for a source declaring more pixels
-// than the decoders take, which is not handed to the OS at all (ADR 0029). Any other source is decoded as it is.
+// ffmpeg where the person prefers it and it is installed, else the OS (ADR 0030).
+const converterFor = async (ports: Ports): Promise<Converter> =>
+  (await ports.prefersFfmpeg()) && (await ports.isFfmpegInstalled()) ? 'ffmpeg' : 'os'
+
+// A source in a converted format, as the PNG, or the GIF of an animation, its converter makes of it in the
+// picture's directory; null where the conversion or reading its output back fails, which no retry changes, and for
+// a source declaring more pixels than the decoders take, which is not handed to a converter at all (ADR 0029).
+// Any other source is decoded as it is.
 const convertedOrAsIs = async (ports: Ports, host: Host, directory: string, source: SourceImage | null) => {
   const converted = source && sniffConverted(source.bytes)
   if (!converted) {
     return source
   }
-  const from = joinPath(host.os, directory, CONVERTED_SOURCE_FILE)
-  const to = joinPath(host.os, directory, CONVERTED_PNG_FILE)
-  const convert = convertToPngCommand(host.os, from, to)
-  if (convert === null || converted.width * converted.height > MAX_CONVERTED_PIXELS) {
+  const framePixels = converted.width * converted.height
+  if (framePixels > MAX_CONVERTED_PIXELS || framePixels * converted.frames > MAX_CONVERTED_TOTAL_PIXELS) {
     return null
   }
-  if (!(await ports.convertsFormats())) {
-    throw new ConversionTurnedOff()
+  const converter = await converterFor(ports)
+  const isAnimated = converted.frames > 1 && convertsAnimation(host.os, converter)
+  const from = joinPath(host.os, directory, CONVERTED_SOURCE_FILE)
+  const to = joinPath(host.os, directory, isAnimated ? CONVERTED_GIF_FILE : CONVERTED_PNG_FILE)
+  const convert = convertCommand(host.os, converter, { from, to, isAnimated })
+  if (convert === null || !(await ports.convertsFormats())) {
+    throw new NotConvertedNow()
   }
   await ports.run(makeDirectoryCommand(host.os, directory))
   await ports.run(writeBytesCommand(host.os, from, source.bytes))
@@ -118,7 +127,7 @@ const loadOrRetry = async (ports: Ports, key: string, load: () => Promise<Source
     plans.delete(key)
     return picture
   } catch (error) {
-    if (error instanceof ConversionTurnedOff) {
+    if (error instanceof NotConvertedNow) {
       pictures.delete(key)
       return null
     }

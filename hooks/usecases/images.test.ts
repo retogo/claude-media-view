@@ -73,6 +73,10 @@ describe('loadPicture of a converted format', () => {
     ...new TextEncoder().encode('RIFF'), 0x16, 0, 0, 0, ...new TextEncoder().encode('WEBPVP8X'), 0x0a, 0, 0, 0, 0, 0, 0, 0, 0x1f, 0x4e, 0, 0x1f, 0x4e, 0,
   ])
   const CONVERTED = /^\/tmp\/claude-501\/media-view\/[0-9a-f]{16}\/source\.png$/
+  // 64x64, three frames of 200 ms, saved by Pillow.
+  const ANIMATED_WEBP = Uint8Array.fromBase64(
+    'UklGRmwBAABXRUJQVlA4WAoAAAACAAAAPwAAPwAAQU5JTQYAAAAAAAAAAABBTk1GagAAAAAAAAAAAD8AAD8AAMgAAAJWUDggUgAAALAEAJ0BKkAAQAA+bTaZSSQjIqEiCACADYlpBigAmQH4AAiBktlWJj2n15tXQAAA/vCbQ//+QXLC65Gv//yA/5Af8gP/5AflTZnMXkaKqgnwgABBTk1GZgAAAAAAAAAAAD8AAD8AAMgAAABWUDggTgAAADQEAJ0BKkAAQAA+bTKSSQIgAADYlpANWqgH4AfgACLt0ZQYR2nUfk1bsAD+5Yc//7WgODVf5n//+++FEduv9CX6YXsil/xM5+NS/wXAAEFOTUZgAAAAAAAAAAAAPwAAPwAAyAAAAFZQOCBIAAAA1AMAnQEqQABAAD5tMpJJAiAAANiWkGKACZAAfxrvCBpcJTqYto+AAP75Hdv//kB//kB//kB//ID//iF3shz8Hdpv277cgAAA',
+  )
 
   test('has the OS convert it to a PNG next to its frames, and draws that', async () => {
     const { ports, runs } = fakePorts({}, {
@@ -151,12 +155,64 @@ describe('loadPicture of a converted format', () => {
     expect(await loadPicture(ports, 'webp-off', webp)).toMatchObject({ width: 1, height: 1 })
   })
 
-  test('resolves null on Linux, which has no converter, without running anything', async () => {
+  test('resolves null on Linux without ffmpeg, which has no converter, without running anything', async () => {
     const { ports, runs } = fakePorts({}, {
       host: async () => ({ os: 'linux', tmpRoot: '/tmp/claude-1000', cacheRoot: '/tmp/claude-1000/media-view' }),
     })
 
     expect(await loadPicture(ports, 'webp-on-linux', webp)).toBeNull()
+    expect(runs).toEqual([])
+  })
+
+  const readsConverted = (bytes: Uint8Array) => async (path: string) => {
+    if (!/\/source\.(png|gif)$/.test(path)) {
+      throw new Error(`ENOENT: ${path}`)
+    }
+    return bytes
+  }
+  const converterOf = (runs: { argv: string[] }[]) => runs.find(({ argv }) => !['mkdir', '/bin/sh'].includes(argv[0]!))?.argv[0]
+
+  test('converts with ffmpeg where it is installed and preferred, on Linux too', async () => {
+    const { ports, runs } = fakePorts({}, {
+      host: async () => ({ os: 'linux', tmpRoot: '/tmp/claude-1000', cacheRoot: '/tmp/claude-1000/media-view' }),
+      isFfmpegInstalled: async () => true,
+      readFile: readsConverted(PNG),
+    })
+
+    expect(await loadPicture(ports, 'webp-ffmpeg', webp)).toMatchObject({ width: 1, height: 1 })
+    expect(converterOf(runs)).toBe('ffmpeg')
+  })
+
+  test('converts with the OS where ffmpeg is not installed, or not preferred', async () => {
+    const missing = fakePorts({}, { isFfmpegInstalled: async () => false, readFile: readsConverted(PNG) })
+    const notPreferred = fakePorts({}, { isFfmpegInstalled: async () => true, prefersFfmpeg: async () => false, readFile: readsConverted(PNG) })
+
+    await loadPicture(missing.ports, 'webp-no-ffmpeg', webp)
+    await loadPicture(notPreferred.ports, 'webp-ffmpeg-not-preferred', webp)
+
+    expect(converterOf(missing.runs)).toBe('sips')
+    expect(converterOf(notPreferred.runs)).toBe('sips')
+  })
+
+  test('converts an animated WebP to a GIF, and draws its frames', async () => {
+    const { ports, runs } = fakePorts({}, { readFile: readsConverted(Uint8Array.fromBase64(TEN_FRAMES)) })
+
+    const picture = await loadPicture(ports, 'animated-webp', async () => ({ bytes: ANIMATED_WEBP }))
+
+    expect(picture?.frames).toHaveLength(10)
+    expect(runs.find(({ argv }) => argv[0] === 'osascript')?.argv.at(-1)).toMatch(/\/source\.gif$/)
+  })
+
+  test('resolves null for an animation whose frames together declare more pixels than the decoders take', async () => {
+    const chunk = (name: string) => [...new TextEncoder().encode(name), 0, 0, 0, 0]
+    // 2000x2000, 121 frames: 484 million pixels.
+    const longAnimation = new Uint8Array([
+      ...chunk('RIFF'), ...new TextEncoder().encode('WEBPVP8X'), 0x0a, 0, 0, 0, 0x02, 0, 0, 0, 0xcf, 0x07, 0, 0xcf, 0x07, 0,
+      ...Array.from({ length: 121 }, () => chunk('ANMF')).flat(),
+    ])
+    const { ports, runs } = fakePorts()
+
+    expect(await loadPicture(ports, 'long-animation', async () => ({ bytes: longAnimation }))).toBeNull()
     expect(runs).toEqual([])
   })
 })

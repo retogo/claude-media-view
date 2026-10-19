@@ -93,8 +93,8 @@ export const DRAFT_POLL_MS = 200
 
 // A macOS session `session-1` with 2.png and 3.png pasted (each `pasted`, base64) and `draft` in the composer,
 // which names both unless given, the plugin's store holding `stored`, and `files` there to read as the same bytes
-// besides, or as their base64 in `contents`; returns the argv of every process run and the store, to read what
-// was kept. The draft is read once.
+// besides, or as their base64 in `contents`, and an ffmpeg on PATH when `hasFfmpeg`; returns the argv of every
+// process run and the store, to read what was kept. The draft is read once.
 export const startSession = async (
   $: Engine,
   on: On,
@@ -103,8 +103,16 @@ export const startSession = async (
     stored = {},
     files = [],
     contents = {},
+    hasFfmpeg = false,
     draft = { text: '[Image #2] [Image #3]' },
-  }: { pasted?: string; stored?: Record<string, unknown>; files?: string[]; contents?: Record<string, string>; draft?: { text: string } } = {},
+  }: {
+    pasted?: string
+    stored?: Record<string, unknown>
+    files?: string[]
+    contents?: Record<string, string>
+    hasFfmpeg?: boolean
+    draft?: { text: string }
+  } = {},
 ) => {
   const runs: string[][] = []
   const copied: string[] = []
@@ -128,7 +136,9 @@ export const startSession = async (
   on('process.run', (_$, e) => {
     runs.push([...e.argv])
     const stdout = e.argv[0] === 'uname' ? 'Darwin\n' : e.argv[0] === 'id' ? '501\n' : ''
-    return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    // A shell's exit for a command it cannot find.
+    const exitCode = e.argv[0] === 'ffmpeg' && !hasFfmpeg ? 127 : 0
+    return { value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('fs.list', (_$, e) => ({ value: posixPath(e.path) === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : posixPath(e.path) === PASTE_CACHE ? [entry('2.png', 'file'), entry('3.png', 'file')] : [] }))
   on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === PASTE_CACHE || files.includes(posixPath(e.path)) }))

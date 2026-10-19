@@ -66,4 +66,5 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0026](0026-gallery-follows-the-chat.md) | The gallery shows what the chat shows, newest first | Accepted |
 | [0027](0027-settings-by-where-images-show.md) | Settings are split by where an image shows | Accepted |
 | [0028](0028-call-observer-registered-first.md) | The hook that watches every tool call is registered first | Accepted |
-| [0029](0029-os-converts-webp-heic-tiff.md) | The OS converts WebP, HEIC and TIFF to PNG wherever a picture is loaded | Accepted |
+| [0029](0029-os-converts-webp-heic-tiff.md) | The OS converts WebP, HEIC and TIFF wherever a picture is loaded | Accepted |
+| [0030](0030-ffmpeg-converts-where-installed.md) | ffmpeg converts in place of the OS where the person installed it | Accepted |
