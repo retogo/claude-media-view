@@ -29,10 +29,10 @@ describe('/media-view settings', () => {
     const pane = await mountSettings($)
 
     const lines = (await pane.findAll({})).flatMap(node =>
-      node.type === 'Button' ? [node.key] : node.type === 'Text' && ['Show images', 'GIFs'].includes(String(node.text)) ? [node.text] : [],
+      node.type === 'Button' ? [node.key] : node.type === 'Text' && ['Show media', 'GIFs'].includes(String(node.text)) ? [node.text] : [],
     )
     expect(lines).toEqual([
-      'Show images',
+      'Show media',
       'setting-abovePrompt',
       'setting-userMessages',
       'setting-toolCalls',

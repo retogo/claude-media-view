@@ -13,7 +13,7 @@ export type ShowSetting = (typeof SHOW_SETTING_KEYS)[number]
 
 // The settings pane's sections, in the order the person reads them.
 export const SETTING_SECTIONS: readonly { title: string; keys: readonly SettingKey[] }[] = [
-  { title: 'Show images', keys: SHOW_SETTING_KEYS },
+  { title: 'Show media', keys: SHOW_SETTING_KEYS },
   { title: 'GIFs', keys: PLAY_SETTING_KEYS },
 ]
 
