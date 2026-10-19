@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+import type { ConvertedFormat } from './media/decode'
 import { convertCommand, convertsAnimation, makeDirectoryCommand, openCommand, osFrom, readChunkCommand, tmpRootFor, writeBytesCommand } from './platform'
+
+// Every ffmpeg conversion reads only local files, decodes no frame past the pixel cap, and names its demuxer.
+const FFMPEG_INPUT = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-protocol_whitelist', 'file', '-max_pixels', '24000000', '-f']
 
 describe('openCommand', () => {
   test('opens a file in the OS viewer', () => {
@@ -106,7 +110,7 @@ describe('readChunkCommand', () => {
 })
 
 describe('convertCommand', () => {
-  const still = (from: string, to: string) => ({ from, to, isAnimated: false })
+  const still = (from: string, to: string, format: ConvertedFormat = 'webp') => ({ from, to, format, isAnimated: false })
 
   test('converts a still with sips on macOS', () => {
     expect(convertCommand('mac', 'os', still('/c/a b/source', '/c/a b/source.png'))).toEqual({
@@ -116,7 +120,7 @@ describe('convertCommand', () => {
   })
 
   test('converts an animation to a GIF through ImageIO from JavaScript for Automation on macOS', () => {
-    const command = convertCommand('mac', 'os', { from: '/c/source', to: '/c/source.gif', isAnimated: true })
+    const command = convertCommand('mac', 'os', { from: '/c/source', to: '/c/source.gif', format: 'webp', isAnimated: true })
 
     expect(command?.argv.slice(0, 4)).toEqual(['osascript', '-l', 'JavaScript', '-e'])
     expect(command?.argv[4]).toContain("$('com.compuserve.gif')")
@@ -125,13 +129,19 @@ describe('convertCommand', () => {
 
   test('converts with ffmpeg on any OS where it is the converter: a still to PNG, an animation to a GIF of its own palette', () => {
     expect(convertCommand('linux', 'ffmpeg', still('/c/source', '/c/source.png'))).toEqual({
-      argv: ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', '/c/source', '-frames:v', '1', '-update', '1', '/c/source.png'],
+      argv: [...FFMPEG_INPUT, 'webp_pipe', '-i', '/c/source', '-frames:v', '1', '-update', '1', '/c/source.png'],
       init: {},
     })
-    expect(convertCommand('windows', 'ffmpeg', { from: 'C:\\c\\source', to: 'C:\\c\\source.gif', isAnimated: true })).toEqual({
-      argv: ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', 'C:\\c\\source', '-filter_complex', 'split[a][b];[a]palettegen[p];[b][p]paletteuse', '-loop', '0', 'C:\\c\\source.gif'],
+    expect(convertCommand('windows', 'ffmpeg', { from: 'C:\\c\\source', to: 'C:\\c\\source.gif', format: 'webp', isAnimated: true })).toEqual({
+      argv: [...FFMPEG_INPUT, 'webp_anim', '-i', 'C:\\c\\source', '-filter_complex', 'split[a][b];[a]palettegen[p];[b][p]paletteuse', '-loop', '0', 'C:\\c\\source.gif'],
       init: {},
     })
+  })
+
+  test('reads with ffmpeg only local files, only by the demuxer of the format sniffed, and no frame past the pixel cap', () => {
+    const demuxerOf = (format: ConvertedFormat) => convertCommand('mac', 'ffmpeg', still('/c/source', '/c/source.png', format))?.argv[FFMPEG_INPUT.length]
+
+    expect((['webp', 'heic', 'tiff'] as const).map(demuxerOf)).toEqual(['webp_pipe', 'mov', 'tiff_pipe'])
   })
 
   test('keeps an animation only where the converter can: ffmpeg anywhere, the OS on macOS', () => {

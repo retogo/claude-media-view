@@ -1,3 +1,5 @@
+import { MAX_CONVERTED_PIXELS, type ConvertedFormat } from './media/decode'
+
 export type Os = 'mac' | 'linux' | 'windows'
 
 // A process to run: its argument vector, and its stdin and extra environment.
@@ -63,7 +65,7 @@ const OUT_PATH_VARIABLE = 'MEDIA_VIEW_OUT_PATH'
 // What turns a converted format into a PNG or a GIF: the OS's own codecs, or an ffmpeg the person installed (ADR 0030).
 export type Converter = 'os' | 'ffmpeg'
 
-export type Conversion = { from: string; to: string; isAnimated: boolean }
+export type Conversion = { from: string; to: string; format: ConvertedFormat; isAnimated: boolean }
 
 // ImageIO writes an animated WebP's frames as a looping GIF, each held as long as the WebP holds it. JXA knows no
 // type for ImageIO's key constants, so the keys are written as the strings they stand for (ADR 0029).
@@ -85,17 +87,23 @@ function run([from, to]) {
 }`
 // One palette made for the whole animation keeps its colours closer than GIF's default palette.
 const FFMPEG_GIF_FILTER = 'split[a][b];[a]palettegen[p];[b][p]paletteuse'
-const FFMPEG = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i']
+// ffmpeg reads only the local file, as the demuxer of the format the module sniffed rather than whatever its own
+// probe finds, and decodes no frame past the module's pixel cap (ADR 0030).
+const FFMPEG = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-protocol_whitelist', 'file', '-max_pixels', String(MAX_CONVERTED_PIXELS), '-f']
+const FFMPEG_DEMUXERS: Record<ConvertedFormat, string> = { webp: 'webp_pipe', heic: 'mov', tiff: 'tiff_pipe' }
+// ffmpeg reads an animated WebP's frames through a demuxer of its own, which refuses a still.
+const FFMPEG_ANIMATED_WEBP_DEMUXER = 'webp_anim'
 
 // Whether a converter keeps an animation, as a GIF: ffmpeg anywhere, the OS on macOS only.
 export const convertsAnimation = (os: Os, converter: Converter) => converter === 'ffmpeg' || os === 'mac'
 
 // Converts an image the module does not decode to a PNG of its first frame, or an animation to a GIF; null where
 // the OS has no codecs to rely on (ADR 0029).
-export const convertCommand = (os: Os, converter: Converter, { from, to, isAnimated }: Conversion): Command | null => {
+export const convertCommand = (os: Os, converter: Converter, { from, to, format, isAnimated }: Conversion): Command | null => {
   if (converter === 'ffmpeg') {
+    const demuxer = isAnimated ? FFMPEG_ANIMATED_WEBP_DEMUXER : FFMPEG_DEMUXERS[format]
     const output = isAnimated ? ['-filter_complex', FFMPEG_GIF_FILTER, '-loop', '0'] : ['-frames:v', '1', '-update', '1']
-    return { argv: [...FFMPEG, from, ...output, to], init: {} }
+    return { argv: [...FFMPEG, demuxer, '-i', from, ...output, to], init: {} }
   }
   if (os === 'mac') {
     return isAnimated

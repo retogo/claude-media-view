@@ -22,6 +22,8 @@ Whether ffmpeg runs is asked once per session; one installed later counts from t
 
 Option 4 is not taken: a failed conversion is no picture whatever converted it, and the person who prefers ffmpeg can turn the preference off.
 
+ffmpeg left to itself probes its input and picks the demuxer that scores highest, and some demuxers open further files or URLs. So the pixel caps checked on the module's reading of the header could guard a different reading than ffmpeg's, and a file could reach beyond itself. ffmpeg is therefore told the demuxer of the format the module sniffed, allowed only local files, and capped per frame at the module's pixel cap.
+
 ## Evidence
 
 ffmpeg 9.0.1 from nixpkgs (`--enable-libwebp`), macOS 26.6.2:
@@ -36,6 +38,9 @@ ffmpeg 9.0.1 from nixpkgs (`--enable-libwebp`), macOS 26.6.2:
 
 - Each input copied to `source`, with no extension, converted alike.
 - Text named `bad.webp`: `missing RIFF tag`, exit 69, no output file.
+- `ffprobe` named the demuxers it picks: `webp_pipe` for a still WebP, `webp_anim` for an animated one, `mov,mp4,m4a,3gp,3g2,mj2` for HEIC, `tiff_pipe` for TIFF. With `-protocol_whitelist file -max_pixels 24000000` and `-f` naming each (`mov` for HEIC), every input above converted as before, the 4032×2268 HEIC included.
+- An animated WebP read as `-f webp_pipe` failed with `image data not found`, exit 69; as `-f webp_anim` it made the same GIF. A still WebP read as `-f webp_anim` exited 183.
+- `-max_pixels 1000` on the 1280×720 WebP: `Picture size 1280x720 exceeds specified max pixel count 1000`, exit 69, no output. A TIFF read as `-f webp_pipe`: exit 69, no output.
 
 ## Consequences
 

@@ -77,7 +77,7 @@ const convertedOrAsIs = async (ports: Ports, host: Host, directory: string, sour
   const isAnimated = converted.frames > 1 && convertsAnimation(host.os, converter)
   const from = joinPath(host.os, directory, CONVERTED_SOURCE_FILE)
   const to = joinPath(host.os, directory, isAnimated ? CONVERTED_GIF_FILE : CONVERTED_PNG_FILE)
-  const convert = convertCommand(host.os, converter, { from, to, isAnimated })
+  const convert = convertCommand(host.os, converter, { from, to, format: converted.format, isAnimated })
   if (convert === null || !(await ports.convertsFormats())) {
     throw new NotConvertedNow()
   }
