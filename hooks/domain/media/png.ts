@@ -106,19 +106,85 @@ export const scaledSize = (width: number, height: number, maxEdge: number) => {
   return { scale, width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
 }
 
-// Nearest-pixel downscale so the longer edge is at most `maxEdge`.
+// Along one axis, the source pixels each target pixel covers and how much of each: a source pixel split
+// between two targets counts in both, by the share that falls in each. Flat typed arrays keep the loops tight.
+const coverage = (sourceLength: number, targetLength: number) => {
+  const span = sourceLength / targetLength
+  const first = new Int32Array(targetLength)
+  const count = new Int32Array(targetLength)
+  const offset = new Int32Array(targetLength)
+  const total = new Float64Array(targetLength)
+  const weights: number[] = []
+  for (let target = 0; target < targetLength; target++) {
+    const start = target * span
+    const end = Math.min(sourceLength, (target + 1) * span)
+    first[target] = Math.floor(start)
+    offset[target] = weights.length
+    for (let index = first[target]!; index < end; index++) {
+      const weight = Math.min(end, index + 1) - Math.max(start, index)
+      weights.push(weight)
+      total[target]! += weight
+    }
+    count[target] = weights.length - offset[target]!
+  }
+  return { first, count, offset, total, weights: Float64Array.from(weights) }
+}
+
+// Downscale so the longer edge is at most `maxEdge`, each pixel the average of the area it covers: text and lines
+// stay legible where picking one source pixel per target would drop most of them. Colour is averaged by opacity
+// (ADR 0019).
 export const fitWithin = (image: Rgba, maxEdge: number): Rgba => {
   const { scale, width, height } = scaledSize(image.width, image.height, maxEdge)
   if (scale >= 1) {
     return image
   }
+  const source = image.rgba
+  const columns = coverage(image.width, width)
+  const rows = coverage(image.height, height)
+  // Across, then down; the colour channels hold colour × opacity until the end.
+  const across = new Float64Array(width * image.height * BYTES_PER_PIXEL)
+  for (let y = 0; y < image.height; y++) {
+    const rowStart = y * image.width
+    for (let x = 0; x < width; x++) {
+      let red = 0
+      let green = 0
+      let blue = 0
+      let opacity = 0
+      for (let k = 0; k < columns.count[x]!; k++) {
+        const from = (rowStart + columns.first[x]! + k) * BYTES_PER_PIXEL
+        const weighted = source[from + 3]! * columns.weights[columns.offset[x]! + k]!
+        red += source[from]! * weighted
+        green += source[from + 1]! * weighted
+        blue += source[from + 2]! * weighted
+        opacity += weighted
+      }
+      const to = (y * width + x) * BYTES_PER_PIXEL
+      across[to] = red
+      across[to + 1] = green
+      across[to + 2] = blue
+      across[to + 3] = opacity
+    }
+  }
   const rgba = new Uint8Array(width * height * BYTES_PER_PIXEL)
   for (let y = 0; y < height; y++) {
-    const sourceY = Math.min(image.height - 1, Math.floor(y / scale))
     for (let x = 0; x < width; x++) {
-      const sourceX = Math.min(image.width - 1, Math.floor(x / scale))
-      const from = (sourceY * image.width + sourceX) * BYTES_PER_PIXEL
-      rgba.set(image.rgba.subarray(from, from + BYTES_PER_PIXEL), (y * width + x) * BYTES_PER_PIXEL)
+      let red = 0
+      let green = 0
+      let blue = 0
+      let opacity = 0
+      for (let k = 0; k < rows.count[y]!; k++) {
+        const from = ((rows.first[y]! + k) * width + x) * BYTES_PER_PIXEL
+        const weight = rows.weights[rows.offset[y]! + k]!
+        red += across[from]! * weight
+        green += across[from + 1]! * weight
+        blue += across[from + 2]! * weight
+        opacity += across[from + 3]! * weight
+      }
+      const to = (y * width + x) * BYTES_PER_PIXEL
+      rgba[to] = opacity === 0 ? 0 : Math.round(red / opacity)
+      rgba[to + 1] = opacity === 0 ? 0 : Math.round(green / opacity)
+      rgba[to + 2] = opacity === 0 ? 0 : Math.round(blue / opacity)
+      rgba[to + 3] = Math.round(opacity / (columns.total[x]! * rows.total[y]!))
     }
   }
   return { width, height, rgba }

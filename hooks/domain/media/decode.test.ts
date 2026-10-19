@@ -42,6 +42,13 @@ describe('decodeMedia', () => {
     expect(decodeMedia(Uint8Array.fromBase64(JPEG_16X8))).toMatchObject({ kind: 'rgba', width: 16, height: 8 })
   })
 
+  test('scales a JPEG still to the still edge, a GIF to the frame edge', () => {
+    const limits = { maxEdge: 1, maxStillEdge: 8, maxFrames: 2 }
+
+    expect(decodeMedia(Uint8Array.fromBase64(JPEG_16X8), limits)).toMatchObject({ width: 8, height: 4 })
+    expect(decodeMedia(Uint8Array.fromBase64(GIF_TWO_FRAMES), limits)).toMatchObject({ width: 1, height: 1 })
+  })
+
   test('answers null for a format it does not decode', () => {
     expect(decodeMedia(new Uint8Array([1, 2, 3]))).toBeNull()
   })

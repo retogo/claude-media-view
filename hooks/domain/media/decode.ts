@@ -26,8 +26,9 @@ const PNG_CRC_BYTES = 4
 // `index` and `startMs` place the frame in its source, which may have had more frames.
 export type RgbaFrame = { rgba: Uint8Array; delayMs: number; index: number; startMs: number }
 
-// Bounds for decoded pixels: the longest edge, and how many frames to keep.
-export type DecodeLimits = { maxEdge: number; maxFrames: number }
+// Bounds for decoded pixels: the longest edge of a GIF's frames, of a JPEG still (one frame, so it can be larger),
+// and how many frames to keep.
+export type DecodeLimits = { maxEdge: number; maxStillEdge: number; maxFrames: number }
 
 // A PNG is drawn as it is; everything else becomes RGBA frames (one for a still).
 export type Decoded =
@@ -104,7 +105,7 @@ export const decodeMedia = (bytes: Uint8Array, limits?: DecodeLimits): Decoded |
       : { kind: 'rgba', width: gif.width, height: gif.height, frames: gif.frames, sourceFrameCount: gif.sourceFrameCount }
   }
   const decoded = decodeJpeg(bytes)
-  const jpeg = limits === undefined ? decoded : fitWithin(decoded, limits.maxEdge)
+  const jpeg = limits === undefined ? decoded : fitWithin(decoded, limits.maxStillEdge)
   return { kind: 'rgba', width: jpeg.width, height: jpeg.height, frames: [{ rgba: jpeg.rgba, delayMs: 0, index: 0, startMs: 0 }], sourceFrameCount: 1 }
 }
 

@@ -9,8 +9,9 @@ const IMAGES_DIRECTORY = 'images'
 const MAX_RETRIES = 3
 // Long enough for Claude Code to finish writing a paste the draft already shows.
 const RETRY_DELAY_MS = 250
-// Pictures are drawn at most 40 columns wide: frames past this edge, or past this count, only cost memory and disk (ADR 0006).
-const DRAWN_LIMITS = { maxEdge: 512, maxFrames: 200 }
+// Pictures are drawn at most 40 columns wide, some 800 device pixels on a high-density screen: a still is kept up
+// to that, while a GIF's many frames past a smaller edge, or past this count, only cost memory and disk (ADR 0006).
+const DRAWN_LIMITS = { maxEdge: 512, maxStillEdge: 1024, maxFrames: 200 }
 // Write processes running at once, across every picture (ADR 0007).
 const CONCURRENT_WRITES = 4
 

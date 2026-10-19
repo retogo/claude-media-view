@@ -137,7 +137,7 @@ export const frames = async (
   const format = FORMAT_NAMES[sniffed.mediaType]!
   try {
     const limit = Math.min(MAX_FRAMES_LIMIT, Math.max(1, Math.floor(maxFrames ?? DEFAULT_MAX_FRAMES)))
-    const decoded = sniffed.mediaType === 'image/gif' ? decodeMedia(bytes, { maxEdge: MAX_EDGE, maxFrames: limit }) : null
+    const decoded = sniffed.mediaType === 'image/gif' ? decodeMedia(bytes, { maxEdge: MAX_EDGE, maxStillEdge: MAX_EDGE, maxFrames: limit }) : null
     if (decoded?.kind === 'rgba' && decoded.sourceFrameCount > 1) {
       return { result: frameBlocks(name, sniffed, decoded, decoded.frames, decoded.sourceFrameCount) }
     }

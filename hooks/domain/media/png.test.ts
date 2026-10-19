@@ -27,12 +27,29 @@ describe('fitWithin', () => {
     expect(fitWithin(image, 4)).toBe(image)
   })
 
-  test('scales the long edge down to the limit by nearest pixel', () => {
-    const rgba = new Uint8Array(4 * 2 * 4)
-    rgba.set([9, 9, 9, 9], 0)
-    rgba.set([7, 7, 7, 7], 8)
+  // Opaque pixels of one grey level each.
+  const greys = (width: number, height: number, levels: number[]) => ({
+    width,
+    height,
+    rgba: new Uint8Array(levels.flatMap(level => [level, level, level, 255])),
+  })
 
-    expect(fitWithin({ width: 4, height: 2, rgba }, 2)).toEqual({ width: 2, height: 1, rgba: new Uint8Array([9, 9, 9, 9, 7, 7, 7, 7]) })
+  test('scales the long edge down to the limit, each pixel the average of the area it covers', () => {
+    // A black and white checkerboard of 4×2 becomes two mid-grey pixels, not two of its corners.
+    const checkerboard = greys(4, 2, [0, 255, 0, 255, 255, 0, 255, 0])
+
+    expect(fitWithin(checkerboard, 2)).toEqual(greys(2, 1, [128, 128]))
+  })
+
+  test('weighs a source pixel by how much of it falls in each target pixel', () => {
+    // 3 → 2: the middle pixel is split in half between the two.
+    expect(fitWithin(greys(3, 1, [0, 90, 180]), 2)).toEqual(greys(2, 1, [30, 150]))
+  })
+
+  test('averages colour by opacity, so transparent pixels add no dark edge', () => {
+    const halfClear = { width: 2, height: 1, rgba: new Uint8Array([200, 100, 50, 255, 0, 0, 0, 0]) }
+
+    expect(fitWithin(halfClear, 1)).toEqual({ width: 1, height: 1, rgba: new Uint8Array([200, 100, 50, 128]) })
   })
 })
 
