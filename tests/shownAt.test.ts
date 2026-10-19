@@ -4,6 +4,7 @@ import { formatShownAt } from '../hooks/domain/shownAt'
 import { PANE_PROPS, PASTE_CACHE, PLUGIN, PNG_1X1, runCommand, startSession } from './support'
 
 const SHOT_TOOL = 'mcp__shot__take'
+const FRAMES_TOOL = 'mcp__media-view__frames'
 
 // A Text query matches by inclusion; these match a whole heading.
 const exactly = (text: string) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
@@ -96,5 +97,27 @@ describe('the gallery’s times', () => {
     // The paste still in the draft has not shown in the chat yet, and leads.
     const order = (await pane.findAll({ type: 'Button' })).map(button => button.key).filter(key => key?.startsWith('copy-'))
     expect(order).toEqual(['copy-paste-2', `copy-read-${callId}`, 'copy-paste-3'])
+  })
+
+  test('heads an image this plugin’s own tool answered with by the time the call answered', async ($, on) => {
+    on('tool.check', { tool: 'Read' }, () => ({ decision: 'allow' }))
+    const { clock } = await startSession($, on, { files: ['/work/shot.png'], draft: { text: '' } })
+
+    const called = await $.tool.call({ tool: FRAMES_TOOL, tool_use_id: 'toolu_frames', path: '/work/shot.png' })
+    const answeredAt = clock.now()
+    await clock.advance(60_000)
+    await $.ui.mount({
+      plugin: PLUGIN,
+      surface: 'terminal',
+      component: 'ToolResult',
+      props: { tool_use_id: 'toolu_frames', tool: FRAMES_TOOL, output: called.result, isErrored: false },
+      requestId: 'toolu_frames',
+      viewport: { columns: 80, rows: 24 },
+    })
+    await clock.advance(0)
+    await runCommand($, '')
+    const pane = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'media-view' })
+
+    expect(await pane.find({ type: 'Text', text: exactly(`${formatShownAt(answeredAt)}  ${FRAMES_TOOL}`) })).toBeDefined()
   })
 })

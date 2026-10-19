@@ -275,9 +275,9 @@ export const register: Register = on => {
     ),
   }))
 
-  on('tool.call', { tool: 'mcp__media-view__frames' }, async ($, e) => frames(portsFor($), e))
-
   // Any call: a Read's path, which a ToolResult row's props do not carry, and when a result's images showed.
+  // A plugin's hooks nest in the order they are registered, first outermost: registered before the hook that
+  // answers the frames tool, this one sees its calls too (ADR 0028).
   on('tool.call', async ($, e, next) => {
     if (e.tool === 'Read') {
       rememberReadPath(e.tool_use_id, e.file_path)
@@ -286,6 +286,8 @@ export const register: Register = on => {
     await anyTool(key => recordShown($, key), { tool: e.tool, toolUseId: e.tool_use_id, result: 'result' in called ? called.result : undefined })
     return called
   })
+
+  on('tool.call', { tool: 'mcp__media-view__frames' }, async ($, e) => frames(portsFor($), e))
 
   // Only a prompt from this session's own composer carries its pastes; another agent's or session's numbers its own.
   on('prompt.submit', async ($, e, next) => {
