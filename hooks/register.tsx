@@ -211,7 +211,12 @@ export const register: Register = on => {
         // Read so that a scroll of this pane (written below), or an image the transcript just drew, redraws this pane.
         await Promise.all([read($, mediaViewScrollOffset), read($, seenImages), read($, imageTagRows)])
         const ports = portsFor($)
-        const entries = await mediaViewPane(ports, { bodyColumns: e.props.bodyColumns, scroll: e.props.scroll, shownAt: await read($, shownAt) })
+        const entries = await mediaViewPane(ports, {
+          bodyColumns: e.props.bodyColumns,
+          scroll: e.props.scroll,
+          shownAt: await read($, shownAt),
+          draftNumbers: await read($, draftImageNumbers),
+        })
         return drawMediaViewPane($, e, entries, {
           copyPath: path => $.ui.copy({ text: path }),
           open: async path => ports.run(openCommand((await ports.host()).os, path)),

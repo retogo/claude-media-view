@@ -42,7 +42,7 @@ describe('the gallery’s times', () => {
     expect(await pane.find({ type: 'Text', text: exactly(`${formatShownAt(answeredAt)}  ${SHOT_TOOL}`) })).toBeDefined()
   })
 
-  test('heads a pasted image by the time its prompt was sent, and one not sent by its path alone', async ($, on) => {
+  test('heads a pasted image by the time its prompt was sent, and one still in the draft by its path alone', async ($, on) => {
     on('prompt.submit', (_$, e) => ({ text: e.text }))
     const { clock } = await startSession($, on)
 

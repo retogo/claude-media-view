@@ -88,13 +88,21 @@ export const PANE_PROPS = {
 export const runCommand = ($: Engine, args: string) =>
   $.command.run({ command: 'media-view', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
-// A macOS session `session-1` with 2.png and 3.png pasted (each `pasted`, base64), the plugin's store holding
-// `stored`, and `files` there to read as the same bytes besides; returns the argv of every process run and the
-// store, to read what was kept.
+// How often media-view reads the draft.
+export const DRAFT_POLL_MS = 200
+
+// A macOS session `session-1` with 2.png and 3.png pasted (each `pasted`, base64) and `draft` in the composer,
+// which names both unless given, the plugin's store holding `stored`, and `files` there to read as the same bytes
+// besides; returns the argv of every process run and the store, to read what was kept. The draft is read once.
 export const startSession = async (
   $: Engine,
   on: On,
-  { pasted = PNG_1X1, stored = {}, files = [] }: { pasted?: string; stored?: Record<string, unknown>; files?: string[] } = {},
+  {
+    pasted = PNG_1X1,
+    stored = {},
+    files = [],
+    draft = { text: '[Image #2] [Image #3]' },
+  }: { pasted?: string; stored?: Record<string, unknown>; files?: string[]; draft?: { text: string } } = {},
 ) => {
   const runs: string[][] = []
   const copied: string[] = []
@@ -113,7 +121,7 @@ export const startSession = async (
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('tool.register', (_$, e) => ({ value: { tool: `mcp__media-view__${e.name}` } }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  on('prompt.read', () => ({ value: { text: '', cursor: 0 } }))
+  on('prompt.read', () => ({ value: { text: draft.text, cursor: draft.text.length } }))
   on('session.id', () => ({ value: 'session-1' }))
   on('process.run', (_$, e) => {
     runs.push([...e.argv])
@@ -131,6 +139,7 @@ export const startSession = async (
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await clock.advance(DRAFT_POLL_MS)
   return { runs, copied, blits, clock, store }
 }
 

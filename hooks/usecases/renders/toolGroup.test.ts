@@ -45,7 +45,7 @@ describe('toolGroup', () => {
     })
     const { ports: newSession } = fakePorts({}, { sessionId: async () => 'session-new' })
 
-    expect((await mediaViewPane(newSession, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {} })).map(entry => entry.path)).toEqual([])
+    expect((await mediaViewPane(newSession, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [] })).map(entry => entry.path)).toEqual([])
   })
 
   test('draws only the tools it is told to show', async () => {

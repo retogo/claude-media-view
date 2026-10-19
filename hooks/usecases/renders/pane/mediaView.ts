@@ -45,7 +45,9 @@ const listPasteCache = async (ports: Ports, sessionId: string) => {
   }
 }
 
-const pastedImages = async (ports: Ports, sessionId: string) => {
+// The paste cache keeps every paste, also one taken out of the draft before it was sent: only the pastes in the
+// draft now, or in a prompt sent from the composer, are the person's (ADR 0025).
+const pastedImages = async (ports: Ports, sessionId: string, isPastePresent: (n: number) => boolean) => {
   const pasteCache = await listPasteCache(ports, sessionId)
   if (pasteCache === undefined) {
     return []
@@ -54,7 +56,7 @@ const pastedImages = async (ports: Ports, sessionId: string) => {
   const numbered = files
     .filter(file => file.kind === 'file' && mediaTypeOf(file.name) !== undefined)
     .map(file => ({ n: Number.parseInt(file.name, 10), path: joinPath(host.os, images, file.name) }))
-    .filter(({ n }) => Number.isInteger(n))
+    .filter(({ n }) => Number.isInteger(n) && isPastePresent(n))
     .sort((a, b) => b.n - a.n)
   return Promise.all(
     numbered.map(async ({ n, path }) => ({
@@ -75,14 +77,21 @@ const toolImages = async (ports: Ports) =>
     .map(({ key, shownAtKey, label, path, picture, rowId }) => ({ id: `read-${key}`, timeKey: shownAtKey, label, path: path ?? picture.frames[0]!.source.file, picture, rowId }))
 
 // Every image of the session: pasted ones newest first, then the ones tools' results drew, newest first.
-// `shownAt` holds when each image showed in the chat, by tool call id or by `pasteShownAtKey`.
+// `shownAt` holds when each image showed in the chat, by tool call id or by `pasteShownAtKey`; `draftNumbers`
+// are the draft's image tags.
 export const mediaViewPane = async (
   ports: Ports,
-  { bodyColumns, scroll, shownAt }: { bodyColumns: number; scroll: PaneScroll; shownAt: Readonly<Record<string, number>> },
+  {
+    bodyColumns,
+    scroll,
+    shownAt,
+    draftNumbers,
+  }: { bodyColumns: number; scroll: PaneScroll; shownAt: Readonly<Record<string, number>>; draftNumbers: readonly number[] },
 ): Promise<MediaViewEntry[]> => {
   const sessionId = await ports.sessionId()
   const columns = bodyColumns - 2 * PANE_PADDING.x
-  const shown = [...(await pastedImages(ports, sessionId)), ...(await toolImages(ports))].flatMap(entry =>
+  const isPastePresent = (n: number) => draftNumbers.includes(n) || pasteShownAtKey(n) in shownAt
+  const shown = [...(await pastedImages(ports, sessionId, isPastePresent)), ...(await toolImages(ports))].flatMap(entry =>
     entry.picture === null
       ? []
       : [{ ...entry, picture: entry.picture, box: cellBox(entry.picture, { maxColumns: Math.min(MAX_COLUMNS, columns), maxRows: MAX_ROWS }) }],
