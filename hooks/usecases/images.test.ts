@@ -65,9 +65,13 @@ describe('loadPicture', () => {
 })
 
 describe('loadPicture of a converted format', () => {
-  // The first bytes of a WebP: RIFF, its size, WEBP.
-  const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20])
+  // 3x2 lossy WebP.
+  const WEBP = Uint8Array.fromBase64('UklGRjYAAABXRUJQVlA4ICoAAACQAQCdASoDAAIAAsBMJaACdLoAA5gA/u2QP4hd7G2//PTP62/j/xkAAAA=')
   const webp = async () => ({ bytes: WEBP })
+  // The header of an extended WebP declaring a 20000x20000 canvas.
+  const HUGE_WEBP = new Uint8Array([
+    ...new TextEncoder().encode('RIFF'), 0x16, 0, 0, 0, ...new TextEncoder().encode('WEBPVP8X'), 0x0a, 0, 0, 0, 0, 0, 0, 0, 0x1f, 0x4e, 0, 0x1f, 0x4e, 0,
+  ])
   const CONVERTED = /^\/tmp\/claude-501\/media-view\/[0-9a-f]{16}\/source\.png$/
 
   test('has the OS convert it to a PNG next to its frames, and draws that', async () => {
@@ -100,6 +104,30 @@ describe('loadPicture of a converted format', () => {
 
     expect(await loadPicture(ports, 'broken-webp', webp)).toBeNull()
     expect(await loadPicture(ports, 'broken-webp', webp)).toBeNull()
+    expect(conversions).toBe(1)
+    expect(redraws()).toBe(0)
+  })
+
+  test('resolves null for one declaring more pixels than the decoders take, without handing it to the OS', async () => {
+    const { ports, runs } = fakePorts()
+
+    expect(await loadPicture(ports, 'huge-webp', async () => ({ bytes: HUGE_WEBP }))).toBeNull()
+    expect(runs).toEqual([])
+  })
+
+  test('resolves null for good when the PNG the OS wrote cannot be read back: no second conversion', async () => {
+    let conversions = 0
+    const { ports, redraws } = fakePorts({}, {
+      run: async ({ argv }) => {
+        conversions += argv[0] === 'sips' ? 1 : 0
+      },
+      readFile: async path => {
+        throw new Error(`${path} is 70 MiB, over the 64 MiB media-view reads`)
+      },
+    })
+
+    expect(await loadPicture(ports, 'unreadable-png', webp)).toBeNull()
+    expect(await loadPicture(ports, 'unreadable-png', webp)).toBeNull()
     expect(conversions).toBe(1)
     expect(redraws()).toBe(0)
   })

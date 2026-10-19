@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { convertedFormatOf, decodeMedia, decodeToRgba, isCompleteImage, sniffImage } from './decode'
+import { decodeMedia, decodeToRgba, isCompleteImage, sniffConverted, sniffImage } from './decode'
 
 // 1x1 transparent PNG.
 const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -24,22 +24,48 @@ describe('sniffImage', () => {
   })
 })
 
-describe('convertedFormatOf', () => {
+describe('sniffConverted', () => {
+  // 3x2, saved by Pillow: lossy (VP8), lossless (VP8L), and lossy with alpha (VP8X), and as a little-endian TIFF.
+  const WEBP_LOSSY = 'UklGRjYAAABXRUJQVlA4ICoAAACQAQCdASoDAAIAAsBMJaACdLoAA5gA/u2QP4hd7G2//PTP62/j/xkAAAA='
+  const WEBP_LOSSLESS = 'UklGRh4AAABXRUJQVlA4TBEAAAAvAkAAEAdQjyLXo4CBiOh/AAA='
+  const WEBP_EXTENDED =
+    'UklGRlgAAABXRUJQVlA4WAoAAAAQAAAAAgAAAQAAQUxQSAcAAAAAgICAgICAAFZQOCAqAAAAkAEAnQEqAwACAALATCWgAnS6AAOYAP7tkD+IXextv/z0z+tv4/8ZAAAA'
+  const TIFF_INTEL =
+    'SUkqAAgAAAAKAAABBAABAAAAAwAAAAEBBAABAAAAAgAAAAIBAwADAAAAhgAAAAMBAwABAAAAAQAAAAYBAwABAAAAAgAAABEBBAABAAAAjAAAABUBAwABAAAAAwAAABYBBAABAAAAAgAAABcBBAABAAAAEgAAABwBAwABAAAAAQAAAAAAAAAIAAgACADIHh7IHh7IHh7IHh7IHh7IHh4='
+  // 3x2, saved by sips: its `ispe` declares the 4x2 the HEVC frame is coded at.
+  const HEIC =
+    'AAAAGGZ0eXBoZWljAAAAAGhlaWNtaWYxAAABsG1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAHBpY3QAAAAAAAAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAAADnBpdG0AAAAAAAEAAAAjaWluZgAAAAAAAQAAABVpbmZlAgAAAAABAABodmMxAAAAARBpcHJwAAAA7mlwY28AAAATY29scm5jbHgAAgACAAaAAAAADGNsbGkAywBAAAAAFGlzcGUAAAAAAAAABAAAAAIAAAAoY2xhcAAAAAMAAAABAAAAAgAAAAH/wAAAAIAAAAAAAAAAAAABAAAACWlyb3QAAAAAEHBpeGkAAAAAAwgICAAAAHJodmNDAQNwAAAAsAAAAAAAHvAA/P34+AAACwOgAAEAF0ABDAH//wNwAAADALAAAAMAAAMAHnAkoQABACRCAQEDcAAAAwCwAAADAAADAB6gFCBBwJ8EGIe5FlU3AgIGAICiAAEACUQBwGFyyEBTJAAAABppcG1hAAAAAAAAAAEAAQeBAgMGh4SFAAAAHmlsb2MAAAAARAAAAQABAAAAAQAAAdgAAABbAAAAAW1kYXQAAAAAAAAAawAAAFcoAa+jXxpf6RgnQGtAboCiKoQqf/zfZVH8//1jYULxOvmY57JQnX/2me6j10Ff98Q1WRwh0D0hodRf147LphHermM5/Bfwe6uSqCkax/kP+sSZfSPvXv4='
   const bytesOf = (...parts: (string | number[])[]) =>
     new Uint8Array(parts.flatMap(part => (typeof part === 'string' ? [...new TextEncoder().encode(part)] : part)))
+  // A big-endian TIFF whose first IFD gives its width as a SHORT and its height as a LONG.
+  const TIFF_MOTOROLA = bytesOf('MM', [0, 0x2a], [0, 0, 0, 8], [0, 2], [1, 0, 0, 3, 0, 0, 0, 1, 0, 3, 0, 0], [1, 1, 0, 4, 0, 0, 0, 1, 0, 0, 0, 2], [0, 0, 0, 0])
 
-  test('tells WebP, HEIC and TIFF apart by their first bytes', () => {
-    expect(convertedFormatOf(bytesOf('RIFF', [0x24, 0, 0, 0], 'WEBPVP8 '))).toBe('webp')
-    expect(convertedFormatOf(bytesOf([0, 0, 0, 0x18], 'ftypheic', [0, 0, 0, 0]))).toBe('heic')
-    expect(convertedFormatOf(bytesOf([0, 0, 0, 0x18], 'ftypmif1', [0, 0, 0, 0]))).toBe('heic')
-    expect(convertedFormatOf(bytesOf('II', [0x2a, 0], [8, 0, 0, 0]))).toBe('tiff')
-    expect(convertedFormatOf(bytesOf('MM', [0, 0x2a], [0, 0, 0, 8]))).toBe('tiff')
+  test('tells WebP, HEIC and TIFF apart by their first bytes, with the size their header declares', () => {
+    expect(sniffConverted(Uint8Array.fromBase64(WEBP_LOSSY))).toEqual({ format: 'webp', width: 3, height: 2 })
+    expect(sniffConverted(Uint8Array.fromBase64(WEBP_LOSSLESS))).toEqual({ format: 'webp', width: 3, height: 2 })
+    expect(sniffConverted(Uint8Array.fromBase64(WEBP_EXTENDED))).toEqual({ format: 'webp', width: 3, height: 2 })
+    expect(sniffConverted(Uint8Array.fromBase64(HEIC))).toEqual({ format: 'heic', width: 4, height: 2 })
+    expect(sniffConverted(Uint8Array.fromBase64(TIFF_INTEL))).toEqual({ format: 'tiff', width: 3, height: 2 })
+    expect(sniffConverted(TIFF_MOTOROLA)).toEqual({ format: 'tiff', width: 3, height: 2 })
   })
 
-  test('answers null for what the module decodes itself, and for anything else', () => {
-    expect(convertedFormatOf(Uint8Array.fromBase64(PNG_1X1))).toBeNull()
-    expect(convertedFormatOf(bytesOf('RIFF', [0x24, 0, 0, 0], 'WAVEfmt '))).toBeNull()
-    expect(convertedFormatOf(bytesOf([0, 0, 0, 0x18], 'ftypavif', [0, 0, 0, 0]))).toBeNull()
+  test('takes the largest size a HEIC declares, as its tiles and thumbnails each declare their own', () => {
+    const ispe = (width: number, height: number) => [...bytesOf([0, 0, 0, 0x14], 'ispe', [0, 0, 0, 0], [0, 0, width >> 8, width & 0xff], [0, 0, height >> 8, height & 0xff])]
+
+    expect(sniffConverted(bytesOf([0, 0, 0, 0x18], 'ftypheic', [0, 0, 0, 0], ispe(320, 240), ispe(4032, 3024), ispe(512, 512)))).toEqual({
+      format: 'heic',
+      width: 4032,
+      height: 3024,
+    })
+  })
+
+  test('answers null for what the module decodes itself, for anything else, and where no size can be read', () => {
+    expect(sniffConverted(Uint8Array.fromBase64(PNG_1X1))).toBeNull()
+    expect(sniffConverted(bytesOf('RIFF', [0x24, 0, 0, 0], 'WAVEfmt '))).toBeNull()
+    expect(sniffConverted(bytesOf([0, 0, 0, 0x18], 'ftypavif', [0, 0, 0, 0]))).toBeNull()
+    expect(sniffConverted(bytesOf('RIFF', [0x24, 0, 0, 0], 'WEBPVP8 '))).toBeNull()
+    expect(sniffConverted(bytesOf([0, 0, 0, 0x18], 'ftypheic', [0, 0, 0, 0]))).toBeNull()
+    expect(sniffConverted(bytesOf('II', [0x2a, 0], [0xff, 0xff, 0, 0]))).toBeNull()
   })
 })
 

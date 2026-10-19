@@ -26,10 +26,10 @@ describe('AssistantMessage', () => {
 
   test('draws a WebP the reply names, as the PNG the OS converts it to', async ($, on) => {
     const PHOTO = '/work/out/photo.webp'
-    // The first bytes of a WebP: RIFF, its size, WEBP.
-    const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20])
+    // 3x2 lossy WebP.
+    const WEBP = 'UklGRjYAAABXRUJQVlA4ICoAAACQAQCdASoDAAIAAsBMJaACdLoAA5gA/u2QP4hd7G2//PTP62/j/xkAAAA='
     on('tool.check', { tool: 'Read' }, () => ({ decision: 'allow' }))
-    const { runs } = await startSession($, on, { files: [PHOTO], contents: { [PHOTO]: WEBP.toBase64() } })
+    const { runs } = await startSession($, on, { files: [PHOTO], contents: { [PHOTO]: WEBP } })
 
     const image = await (
       await $.ui.mount({

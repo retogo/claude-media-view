@@ -26,15 +26,37 @@ const PNG_CRC_BYTES = 4
 const RIFF_SIGNATURE = [0x52, 0x49, 0x46, 0x46]
 const WEBP_FORM = [0x57, 0x45, 0x42, 0x50]
 const RIFF_FORM_OFFSET = 8
-// A HEIC opens with an ISO media `ftyp` box, after the box's four-byte size, naming a HEIF major brand.
+const FOURCC_BYTES = 4
+// Its first chunk follows the RIFF header. A lossy `VP8 ` chunk's 14-bit width and height (the top two bits scale)
+// follow a 3-byte frame tag and a 3-byte start code; a lossless `VP8L` packs width and height less one in 14 bits
+// each after a signature byte; an extended `VP8X` keeps its canvas less one in 24 bits each after 4 flag bytes.
+const WEBP_CHUNK_OFFSET = 12
+const VP8_SIZE_OFFSET = 26
+const VP8_SIZE_MASK = 0x3fff
+const VP8L_SIZE_OFFSET = 21
+const VP8L_SIZE_BITS = 14
+const VP8L_SIZE_MASK = 0x3fff
+const VP8X_WIDTH_OFFSET = 24
+const VP8X_HEIGHT_OFFSET = 27
+// A HEIC opens with an ISO media `ftyp` box, after the box's four-byte size, naming a HEIF major brand. An `ispe`
+// box declares an image's size as two 32-bit numbers after its version and flags.
 const FTYP = [0x66, 0x74, 0x79, 0x70]
 const FTYP_OFFSET = 4
 const MAJOR_BRAND_OFFSET = 8
-const BRAND_BYTES = 4
 const HEIF_BRANDS = ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1']
-// A TIFF opens with its byte order, Intel or Motorola, and 42 in that order.
+const ISPE = [0x69, 0x73, 0x70, 0x65]
+const ISPE_WIDTH_OFFSET = 8
+const ISPE_HEIGHT_OFFSET = 12
+// A TIFF opens with its byte order, Intel or Motorola, 42 in that order, and where its first IFD is. Each IFD entry
+// is a tag, a type, a count and a value.
 const TIFF_INTEL_SIGNATURE = [0x49, 0x49, 0x2a, 0x00]
 const TIFF_MOTOROLA_SIGNATURE = [0x4d, 0x4d, 0x00, 0x2a]
+const TIFF_IFD_OFFSET = 4
+const TIFF_ENTRY_BYTES = 12
+const TIFF_SHORT = 3
+const TIFF_LONG = 4
+const TIFF_IMAGE_WIDTH = 256
+const TIFF_IMAGE_LENGTH = 257
 
 // `index` and `startMs` place the frame in its source, which may have had more frames.
 export type RgbaFrame = { rgba: Uint8Array; delayMs: number; index: number; startMs: number }
@@ -87,18 +109,92 @@ export const sniffImage = (bytes: Uint8Array): Sniffed | null => {
 // The formats the OS converts to PNG before the module decodes them (ADR 0029).
 export type ConvertedFormat = 'webp' | 'heic' | 'tiff'
 
+export type SniffedConverted = { format: ConvertedFormat; width: number; height: number }
+
+// The pixels a converted format may declare and still be handed to the OS: the cap PNG, GIF and JPEG are held to.
+export const MAX_CONVERTED_PIXELS = 24_000_000
+
+type Size = { width: number; height: number }
+
 const startsWithAt = (bytes: Uint8Array, offset: number, signature: readonly number[]) => startsWith(bytes.subarray(offset), signature)
 
-// The converted format of an image, from its first bytes; null for any other file.
-export const convertedFormatOf = (bytes: Uint8Array): ConvertedFormat | null => {
+const chunkName = (bytes: Uint8Array, offset: number) => new TextDecoder().decode(bytes.subarray(offset, offset + FOURCC_BYTES))
+
+const uint24 = (bytes: Uint8Array, offset: number) => bytes[offset]! | (bytes[offset + 1]! << 8) | (bytes[offset + 2]! << 16)
+
+// A WebP's canvas, from its first chunk: each encoding keeps it in its own way.
+const webpSize = (bytes: Uint8Array): Size | undefined => {
+  const chunk = chunkName(bytes, WEBP_CHUNK_OFFSET)
+  if (chunk === 'VP8 ' && bytes.length >= VP8_SIZE_OFFSET + 4) {
+    return { width: view(bytes).getUint16(VP8_SIZE_OFFSET, true) & VP8_SIZE_MASK, height: view(bytes).getUint16(VP8_SIZE_OFFSET + 2, true) & VP8_SIZE_MASK }
+  }
+  if (chunk === 'VP8L' && bytes.length >= VP8L_SIZE_OFFSET + 4) {
+    const bits = view(bytes).getUint32(VP8L_SIZE_OFFSET, true)
+    return { width: (bits & VP8L_SIZE_MASK) + 1, height: ((bits >>> VP8L_SIZE_BITS) & VP8L_SIZE_MASK) + 1 }
+  }
+  if (chunk === 'VP8X' && bytes.length >= VP8X_HEIGHT_OFFSET + 3) {
+    return { width: uint24(bytes, VP8X_WIDTH_OFFSET) + 1, height: uint24(bytes, VP8X_HEIGHT_OFFSET) + 1 }
+  }
+  return undefined
+}
+
+// A HEIC's largest `ispe` box: the primary image, its grid's tiles and its thumbnails each declare a size.
+const heicSize = (bytes: Uint8Array): Size | undefined => {
+  let largest: Size | undefined
+  for (let at = bytes.indexOf(ISPE[0]!); at !== -1 && at + ISPE_HEIGHT_OFFSET + 4 <= bytes.length; at = bytes.indexOf(ISPE[0]!, at + 1)) {
+    if (startsWithAt(bytes, at, ISPE)) {
+      const size = { width: view(bytes).getUint32(at + ISPE_WIDTH_OFFSET), height: view(bytes).getUint32(at + ISPE_HEIGHT_OFFSET) }
+      largest = largest === undefined || size.width * size.height > largest.width * largest.height ? size : largest
+    }
+  }
+  return largest
+}
+
+// A TIFF's first image, from the width and length entries of its first IFD.
+const tiffSize = (bytes: Uint8Array, isLittleEndian: boolean): Size | undefined => {
+  if (bytes.length < TIFF_IFD_OFFSET + 4) {
+    return undefined
+  }
+  const tiff = view(bytes)
+  const ifd = tiff.getUint32(TIFF_IFD_OFFSET, isLittleEndian)
+  if (ifd + 2 > bytes.length) {
+    return undefined
+  }
+  const values = new Map<number, number>()
+  for (let entry = 0; entry < tiff.getUint16(ifd, isLittleEndian); entry++) {
+    const at = ifd + 2 + entry * TIFF_ENTRY_BYTES
+    if (at + TIFF_ENTRY_BYTES > bytes.length) {
+      return undefined
+    }
+    const type = tiff.getUint16(at + 2, isLittleEndian)
+    const value = type === TIFF_SHORT ? tiff.getUint16(at + 8, isLittleEndian) : type === TIFF_LONG ? tiff.getUint32(at + 8, isLittleEndian) : undefined
+    if (value !== undefined) {
+      values.set(tiff.getUint16(at, isLittleEndian), value)
+    }
+  }
+  const width = values.get(TIFF_IMAGE_WIDTH)
+  const height = values.get(TIFF_IMAGE_LENGTH)
+  return width === undefined || height === undefined ? undefined : { width, height }
+}
+
+const formatAndSize = (bytes: Uint8Array): [ConvertedFormat, Size | undefined] | null => {
   if (startsWith(bytes, RIFF_SIGNATURE) && startsWithAt(bytes, RIFF_FORM_OFFSET, WEBP_FORM)) {
-    return 'webp'
+    return ['webp', webpSize(bytes)]
   }
   if (startsWithAt(bytes, FTYP_OFFSET, FTYP)) {
-    const brand = new TextDecoder().decode(bytes.subarray(MAJOR_BRAND_OFFSET, MAJOR_BRAND_OFFSET + BRAND_BYTES))
-    return HEIF_BRANDS.includes(brand) ? 'heic' : null
+    return HEIF_BRANDS.includes(chunkName(bytes, MAJOR_BRAND_OFFSET)) ? ['heic', heicSize(bytes)] : null
   }
-  return startsWith(bytes, TIFF_INTEL_SIGNATURE) || startsWith(bytes, TIFF_MOTOROLA_SIGNATURE) ? 'tiff' : null
+  if (startsWith(bytes, TIFF_INTEL_SIGNATURE) || startsWith(bytes, TIFF_MOTOROLA_SIGNATURE)) {
+    return ['tiff', tiffSize(bytes, startsWith(bytes, TIFF_INTEL_SIGNATURE))]
+  }
+  return null
+}
+
+// The converted format of an image and the size its header declares, so that its cost is known before the OS
+// decodes it (ADR 0012); null for any other file, and where no size can be read.
+export const sniffConverted = (bytes: Uint8Array): SniffedConverted | null => {
+  const [format, size] = formatAndSize(bytes) ?? []
+  return format === undefined || size === undefined ? null : { format, ...size }
 }
 
 const endsWith = (bytes: Uint8Array, ending: readonly number[], skip = 0) =>

@@ -1,5 +1,5 @@
 import { imageFileName } from '../domain/imageTags'
-import { convertedFormatOf, decodeMedia, isCompleteImage, isDecodedName } from '../domain/media/decode'
+import { decodeMedia, isCompleteImage, isDecodedName, MAX_CONVERTED_PIXELS, sniffConverted } from '../domain/media/decode'
 import { cacheDirectoryName, framePlan, type Picture, type Plan } from '../domain/media/frameCache'
 import { convertToPngCommand, joinPath, makeDirectoryCommand, writeBytesCommand } from '../domain/platform'
 import type { SourceImage } from '../domain/readOutput'
@@ -52,25 +52,27 @@ const decodeOrNull = (source: SourceImage | null) => {
 }
 
 // A source in a converted format, as the PNG the OS makes of it in the picture's directory; null where the OS
-// cannot convert it, which no retry changes (ADR 0029). Any other source is decoded as it is.
+// cannot convert it or reading the PNG back fails, which no retry changes, and for a source declaring more pixels
+// than the decoders take, which is not handed to the OS at all (ADR 0029). Any other source is decoded as it is.
 const convertedOrAsIs = async (ports: Ports, host: Host, directory: string, source: SourceImage | null) => {
-  if (source === null || convertedFormatOf(source.bytes) === null) {
+  const converted = source && sniffConverted(source.bytes)
+  if (!converted) {
     return source
   }
   const from = joinPath(host.os, directory, CONVERTED_SOURCE_FILE)
   const to = joinPath(host.os, directory, CONVERTED_PNG_FILE)
   const convert = convertToPngCommand(host.os, from, to)
-  if (convert === null) {
+  if (convert === null || converted.width * converted.height > MAX_CONVERTED_PIXELS) {
     return null
   }
   await ports.run(makeDirectoryCommand(host.os, directory))
   await ports.run(writeBytesCommand(host.os, from, source.bytes))
   try {
     await ports.run(convert)
+    return { bytes: await ports.readFile(to) }
   } catch {
     return null
   }
-  return { bytes: await ports.readFile(to) }
 }
 
 // The picture's files, decoded once and kept until written. Undefined when the source is no picture or cannot be

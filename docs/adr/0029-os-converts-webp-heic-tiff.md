@@ -17,7 +17,9 @@ ADR 0002 left WebP, HEIC and TIFF to the OS's converters, unbuilt, so such files
 
 Option 1. The source is written beside the picture's frames, the OS converts its first frame to PNG (`sips` on macOS, the Windows Imaging Component through PowerShell), and that PNG is decoded as any PNG is, scaled by the module as other pictures are. Linux has no converter installed by default, so these formats stay undrawn there.
 
-A conversion that fails is no picture, not a failure to retry: the same bytes fail the same way. Writing the source and reading the PNG back are I/O, retried as any write is (ADR 0007).
+The OS's decoders allocate whatever a header declares, as the module's would without ADR 0012. So a source reaches the OS only when its header declares a size within the pixel cap PNG, GIF and JPEG are held to: a WebP's first chunk, a TIFF's first IFD, a HEIC's largest `ispe` box. A file whose size cannot be read is not converted.
+
+A conversion that fails, or whose PNG cannot be read back (one past the size media-view reads), is no picture, not a failure to retry: the same bytes fail the same way, and a retry would convert again. Writing the source is I/O, retried as any write is (ADR 0007).
 
 Option 3 is not taken: `sips -Z` enlarges a small image as readily as it shrinks a large one.
 
