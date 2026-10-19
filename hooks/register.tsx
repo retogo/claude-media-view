@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { stopAnimations } from './adapters/animator'
+import { drawnUnlessSuperseded } from './adapters/superseded'
 import { enginePorts } from './adapters/engine'
 import { drawAbovePrompt, drawMediaViewPane, drawPictureRows, drawSettingsPane } from './adapters/views'
 import { openCommand } from './domain/platform'
@@ -38,6 +39,12 @@ const imageTagRows = atom({ plugin: 'media-view', key: 'imageTagRows' } as const
 // which a newer draw of the same row would otherwise cut short (ADR 0007). Without a session (tests that only
 // draw), a hook's own $ serves.
 let sessionPorts: Ports | undefined
+
+// What a superseded draw answers: nothing, as the engine no longer uses it.
+function superseded($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0]) {
+  const { Box } = $.ui.resolve(e)
+  return <Box />
+}
 
 // The settings, for this session and kept in the store for the next ones (ADR 0023); GIFs stop at once when turned off.
 async function saveSettings($: EngineInterface, next: Settings) {
@@ -88,105 +95,147 @@ export const register: Register = on => {
     return started
   })
 
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.surface !== 'terminal') {
-      return next(e)
-    }
-    const numbers = await read($, draftImageNumbers)
-    const view = e.props.hasSurvey || !(await read($, settings)).abovePrompt
-      ? null
-      : await abovePrompt(portsFor($), { numbers, bodyColumns: e.props.bodyColumns, maxRows: e.props.maxRows })
-    if (view === null) {
-      stopAnimations('AbovePrompt', e.requestId)
-      return next(e)
-    }
-    return drawAbovePrompt($, e, view)
-  })
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =>
+    drawnUnlessSuperseded(
+      next.signal,
+      async () => {
+        if (e.surface !== 'terminal') {
+          return next(e)
+        }
+        const numbers = await read($, draftImageNumbers)
+        const view = e.props.hasSurvey || !(await read($, settings)).abovePrompt
+          ? null
+          : await abovePrompt(portsFor($), { numbers, bodyColumns: e.props.bodyColumns, maxRows: e.props.maxRows })
+        if (view === null) {
+          stopAnimations('AbovePrompt', e.requestId)
+          return next(e)
+        }
+        return drawAbovePrompt($, e, view)
+      },
+      () => superseded($, e),
+    ),
+  )
 
-  on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
-    if (e.surface !== 'terminal') {
-      return next(e)
-    }
-    const shows = await read($, settings)
-    const rows = await toolGroup(portsFor($), {
-      requestId: e.requestId,
-      calls: e.props.calls,
-      viewportColumns: e.viewport?.columns,
-      showsTool: tool => (tool === 'Read' ? shows.readImages : shows.toolImages),
-    })
-    const own = await next(e)
-    return rows === null ? own : drawPictureRows($, e, { site: 'ToolGroup', own, rows, isAnimated: shows.animateGifs })
-  })
-
-  on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
-    if (e.surface !== 'terminal') {
-      return next(e)
-    }
-    const shows = await read($, settings)
-    const rows = await toolResult(portsFor($), {
-      toolUseId: e.props.tool_use_id,
-      tool: e.props.tool,
-      output: e.props.output,
-      viewportColumns: e.viewport?.columns,
-      showsTool: tool => (tool === 'Read' ? shows.readImages : shows.toolImages),
-    })
-    const own = await next(e)
-    return rows === null ? own : drawPictureRows($, e, { site: 'ToolResult', own, rows, isAnimated: shows.animateGifs })
-  })
-
-  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
-    if (e.surface !== 'terminal') {
-      return next(e)
-    }
-    const shows = await read($, settings)
-    const rows = shows.sentPastes
-      ? await userMessage(portsFor($), {
+  on('ui.render', { component: 'ToolGroup' }, async ($, e, next) =>
+    drawnUnlessSuperseded(
+      next.signal,
+      async () => {
+        if (e.surface !== 'terminal') {
+          return next(e)
+        }
+        const shows = await read($, settings)
+        const rows = await toolGroup(portsFor($), {
           requestId: e.requestId,
-          text: e.props.text,
-          isFromSomeoneElse: e.props.from !== undefined,
+          calls: e.props.calls,
           viewportColumns: e.viewport?.columns,
+          showsTool: tool => (tool === 'Read' ? shows.readImages : shows.toolImages),
         })
-      : null
-    const own = await next(e)
-    return rows === null ? own : drawPictureRows($, e, { site: 'UserMessage', own, rows, isAnimated: shows.animateGifs })
-  })
+        const own = await next(e)
+        return rows === null ? own : drawPictureRows($, e, { site: 'ToolGroup', own, rows, isAnimated: shows.animateGifs })
+      },
+      () => superseded($, e),
+    ),
+  )
 
-  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (e.surface !== 'terminal') {
-      return next(e)
-    }
-    const shows = await read($, settings)
-    const rows = shows.replyPaths
-      ? await assistantMessage(portsFor($), { requestId: e.requestId, text: e.props.text, viewportColumns: e.viewport?.columns })
-      : null
-    const own = await next(e)
-    return rows === null ? own : drawPictureRows($, e, { site: 'AssistantMessage', own, rows, isAnimated: shows.animateGifs })
-  })
+  on('ui.render', { component: 'ToolResult' }, async ($, e, next) =>
+    drawnUnlessSuperseded(
+      next.signal,
+      async () => {
+        if (e.surface !== 'terminal') {
+          return next(e)
+        }
+        const shows = await read($, settings)
+        const rows = await toolResult(portsFor($), {
+          toolUseId: e.props.tool_use_id,
+          tool: e.props.tool,
+          output: e.props.output,
+          viewportColumns: e.viewport?.columns,
+          showsTool: tool => (tool === 'Read' ? shows.readImages : shows.toolImages),
+        })
+        const own = await next(e)
+        return rows === null ? own : drawPictureRows($, e, { site: 'ToolResult', own, rows, isAnimated: shows.animateGifs })
+      },
+      () => superseded($, e),
+    ),
+  )
 
-  on('ui.render', { component: 'Pane', requestId: MEDIA_VIEW_PANE }, async ($, e) => {
-    if (e.surface !== 'terminal') {
-      const { Text } = $.ui.resolve(e)
-      return <Text>media-view draws pictures in the terminal.</Text>
-    }
-    // Read so that a scroll of this pane (written below), or an image the transcript just drew, redraws this pane.
-    await Promise.all([read($, mediaViewScrollOffset), read($, seenImages), read($, imageTagRows)])
-    const ports = portsFor($)
-    const entries = await mediaViewPane(ports, { bodyColumns: e.props.bodyColumns, scroll: e.props.scroll, shownAt: await read($, shownAt) })
-    return drawMediaViewPane($, e, entries, {
-      copyPath: path => $.ui.copy({ text: path }),
-      open: async path => ports.run(openCommand((await ports.host()).os, path)),
-      showInChat: rowId => $.ui.scroll({ to: { requestId: rowId }, block: 'center' }),
-    })
-  })
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) =>
+    drawnUnlessSuperseded(
+      next.signal,
+      async () => {
+        if (e.surface !== 'terminal') {
+          return next(e)
+        }
+        const shows = await read($, settings)
+        const rows = shows.sentPastes
+          ? await userMessage(portsFor($), {
+              requestId: e.requestId,
+              text: e.props.text,
+              isFromSomeoneElse: e.props.from !== undefined,
+              viewportColumns: e.viewport?.columns,
+            })
+          : null
+        const own = await next(e)
+        return rows === null ? own : drawPictureRows($, e, { site: 'UserMessage', own, rows, isAnimated: shows.animateGifs })
+      },
+      () => superseded($, e),
+    ),
+  )
 
-  on('ui.render', { component: 'Pane', requestId: SETTINGS_PANE }, async ($, e) => {
-    const current = await read($, settings)
-    if (e.surface !== 'terminal') {
-      const { Text } = $.ui.resolve(e)
-      return <Text>media-view draws pictures in the terminal.</Text>
-    }
-    return drawSettingsPane($, e, settingsPane(current), key => saveSettings($, toggled(current, key)))
-  })
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) =>
+    drawnUnlessSuperseded(
+      next.signal,
+      async () => {
+        if (e.surface !== 'terminal') {
+          return next(e)
+        }
+        const shows = await read($, settings)
+        const rows = shows.replyPaths
+          ? await assistantMessage(portsFor($), { requestId: e.requestId, text: e.props.text, viewportColumns: e.viewport?.columns })
+          : null
+        const own = await next(e)
+        return rows === null ? own : drawPictureRows($, e, { site: 'AssistantMessage', own, rows, isAnimated: shows.animateGifs })
+      },
+      () => superseded($, e),
+    ),
+  )
+
+  on('ui.render', { component: 'Pane', requestId: MEDIA_VIEW_PANE }, async ($, e, next) =>
+    drawnUnlessSuperseded(
+      next.signal,
+      async () => {
+        if (e.surface !== 'terminal') {
+          const { Text } = $.ui.resolve(e)
+          return <Text>media-view draws pictures in the terminal.</Text>
+        }
+        // Read so that a scroll of this pane (written below), or an image the transcript just drew, redraws this pane.
+        await Promise.all([read($, mediaViewScrollOffset), read($, seenImages), read($, imageTagRows)])
+        const ports = portsFor($)
+        const entries = await mediaViewPane(ports, { bodyColumns: e.props.bodyColumns, scroll: e.props.scroll, shownAt: await read($, shownAt) })
+        return drawMediaViewPane($, e, entries, {
+          copyPath: path => $.ui.copy({ text: path }),
+          open: async path => ports.run(openCommand((await ports.host()).os, path)),
+          showInChat: rowId => $.ui.scroll({ to: { requestId: rowId }, block: 'center' }),
+        })
+      },
+      () => superseded($, e),
+    ),
+  )
+
+  on('ui.render', { component: 'Pane', requestId: SETTINGS_PANE }, async ($, e, next) =>
+    drawnUnlessSuperseded(
+      next.signal,
+      async () => {
+        const current = await read($, settings)
+        if (e.surface !== 'terminal') {
+          const { Text } = $.ui.resolve(e)
+          return <Text>media-view draws pictures in the terminal.</Text>
+        }
+        return drawSettingsPane($, e, settingsPane(current), key => saveSettings($, toggled(current, key)))
+      },
+      () => superseded($, e),
+    ),
+  )
 
   on('ui.scroll', { requestId: MEDIA_VIEW_PANE }, async ($, e, next) => {
     const scrolled = await next(e)

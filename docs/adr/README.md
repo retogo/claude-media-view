@@ -61,3 +61,4 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0021](0021-gallery-records-in-session-state.md) | The gallery's records live in the session's state | Accepted |
 | [0022](0022-image-files-named-in-replies.md) | Image files named in replies are drawn when Read may read them | Accepted |
 | [0023](0023-settings-kept-in-the-store.md) | What media-view draws is the person's to choose, and kept across sessions | Accepted |
+| [0024](0024-superseded-draws-fail-quietly.md) | A draw a newer one superseded fails quietly | Accepted |
