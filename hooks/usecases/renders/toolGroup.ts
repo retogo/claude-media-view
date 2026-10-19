@@ -1,5 +1,5 @@
 import { toolOutputImages } from '../../domain/toolOutput'
-import { loadPicture, readPathOf, rememberSeen } from '../images'
+import { loadPicture, readPathOf } from '../images'
 import type { Ports } from '../ports'
 import { isShown, placeInRows, type PictureRows, type Shown } from './pictureRows'
 
@@ -14,16 +14,18 @@ export const toolGroup = async (
   if (images.length === 0) {
     return null
   }
-  const sessionId = await ports.sessionId()
-  const loading = images.map(({ call, i, n, load }) => {
+  const loading = images.map(async ({ call, i, n, load }) => {
     const callKey = call.tool_use_id ?? `${requestId}/${i}`
     const key = n === 0 ? callKey : `${callKey}/${n}`
     // The base64 is decoded only when the picture is not cached yet.
-    const picture = loadPicture(ports, key, async () => load())
+    const picture = await loadPicture(ports, key, async () => load())
+    if (picture === null) {
+      return null
+    }
     const inputPath = (call.input as { file_path?: unknown } | undefined)?.file_path
     const path = call.tool !== 'Read' ? undefined : typeof inputPath === 'string' ? inputPath : readPathOf(key)
-    rememberSeen({ key, path, label: path ?? call.tool, callId: call.tool_use_id, picture, sessionId, rowId: requestId })
-    return picture.then(loaded => loaded && { key: `image-${i}-${n}`, picture: loaded })
+    await ports.rememberSeen({ key, path, label: path ?? call.tool, callId: call.tool_use_id, rowId: requestId, picture })
+    return { key: `image-${i}-${n}`, picture }
   })
   const shown: Shown[] = (await Promise.all(loading)).filter(isShown)
   return shown.length === 0 ? null : placeInRows(shown, viewportColumns)

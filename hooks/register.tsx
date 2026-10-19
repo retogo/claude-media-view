@@ -26,6 +26,8 @@ const isTranscriptAnimated = atom({ plugin: 'media-view', key: 'isTranscriptAnim
 const draftImageNumbers = atom({ plugin: 'media-view', key: 'draftImageNumbers' } as const, [])
 const mediaViewScrollOffset = atom({ plugin: 'media-view', key: 'mediaViewScrollOffset' } as const, 0)
 const shownAt = atom({ plugin: 'media-view', key: 'shownAt' } as const, {})
+const seenImages = atom({ plugin: 'media-view', key: 'seenImages' } as const, [])
+const imageTagRows = atom({ plugin: 'media-view', key: 'imageTagRows' } as const, {})
 
 // Ports over the session's $, made at session.start: work they start outlives the render that asked for it,
 // which a newer draw of the same row would otherwise cut short (ADR 0007). Without a session (tests that only
@@ -125,8 +127,8 @@ export const register: Register = on => {
       const { Text } = $.ui.resolve(e)
       return <Text>media-view draws pictures in the terminal.</Text>
     }
-    // Read so that a scroll of this pane (written below) redraws this pane alone.
-    await read($, mediaViewScrollOffset)
+    // Read so that a scroll of this pane (written below), or an image the transcript just drew, redraws this pane.
+    await Promise.all([read($, mediaViewScrollOffset), read($, seenImages), read($, imageTagRows)])
     const ports = portsFor($)
     const entries = await mediaViewPane(ports, { bodyColumns: e.props.bodyColumns, scroll: e.props.scroll, shownAt: await read($, shownAt) })
     return drawMediaViewPane($, e, entries, {

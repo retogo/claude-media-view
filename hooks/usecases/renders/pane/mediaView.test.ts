@@ -106,5 +106,38 @@ describe('mediaViewPane', () => {
       expect(entry?.heading).toBe('/work/untimed.png')
     })
   })
+
+  // A hot reload clears the module's own variables; the ports keep what the gallery saw.
+  describe('after the module was loaded again', () => {
+    const PANE_ARGS = { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {} }
+    const kept = {
+      key: 'toolu_kept',
+      path: '/work/kept.png',
+      label: '/work/kept.png',
+      callId: 'toolu_kept',
+      rowId: 'group-kept',
+      picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] },
+    }
+
+    test('lists a tool’s image the ports kept, though no row drew it since', async () => {
+      const { ports } = fakePorts({}, { seenImages: async () => [kept] })
+
+      expect((await mediaViewPane(ports, PANE_ARGS)).map(({ label, rowId }) => ({ label, rowId }))).toEqual([{ label: '/work/kept.png', rowId: 'group-kept' }])
+    })
+
+    test('offers the row of a paste the ports kept', async () => {
+      const pasteCache = '/tmp/claude-501/-Users-me/session-1/images'
+      const { ports } = fakePorts(
+        { [`${pasteCache}/3.png`]: Uint8Array.fromBase64(PNG_BASE64) },
+        {
+          listDirectory: async path => (path === '/tmp/claude-501' ? [{ name: '-Users-me', kind: 'dir' }] : [{ name: '3.png', kind: 'file' }]),
+          exists: async path => path === pasteCache,
+          imageTagRowOf: async n => (n === 3 ? 'message-3' : undefined),
+        },
+      )
+
+      expect((await mediaViewPane(ports, PANE_ARGS)).map(({ id, rowId }) => ({ id, rowId }))).toEqual([{ id: 'paste-3', rowId: 'message-3' }])
+    })
+  })
 })
 

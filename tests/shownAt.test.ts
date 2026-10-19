@@ -35,6 +35,7 @@ describe('the gallery’s times', () => {
       requestId: callId,
       viewport: { columns: 80, rows: 24 },
     })
+    await clock.advance(0)
     await runCommand($, '')
     const pane = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'media-view' })
 

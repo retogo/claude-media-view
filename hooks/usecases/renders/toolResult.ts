@@ -1,5 +1,5 @@
 import { toolOutputImages } from '../../domain/toolOutput'
-import { loadPicture, readPathOf, rememberSeen } from '../images'
+import { loadPicture, readPathOf } from '../images'
 import type { Ports } from '../ports'
 import { isShown, placeInRows, type PictureRows, type Shown } from './pictureRows'
 
@@ -12,14 +12,16 @@ export const toolResult = async (
   if (images.length === 0) {
     return null
   }
-  const sessionId = await ports.sessionId()
   const path = tool === 'Read' ? readPathOf(toolUseId) : undefined
-  const pictures = images.map((load, n) => {
+  const loading = images.map(async (load, n) => {
     const key = n === 0 ? toolUseId : `${toolUseId}/${n}`
-    const picture = loadPicture(ports, key, async () => load())
-    rememberSeen({ key, path, label: path ?? tool, callId: toolUseId, picture, sessionId, rowId: toolUseId })
-    return picture
+    const picture = await loadPicture(ports, key, async () => load())
+    if (picture === null) {
+      return null
+    }
+    await ports.rememberSeen({ key, path, label: path ?? tool, callId: toolUseId, rowId: toolUseId, picture })
+    return { key: `image-${n}`, picture }
   })
-  const shown: Shown[] = (await Promise.all(pictures.map((picture, n) => picture.then(loaded => loaded && { key: `image-${n}`, picture: loaded })))).filter(isShown)
+  const shown: Shown[] = (await Promise.all(loading)).filter(isShown)
   return shown.length === 0 ? null : placeInRows(shown, viewportColumns)
 }

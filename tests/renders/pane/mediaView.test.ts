@@ -4,7 +4,7 @@ import { GIF_TWO_FRAMES, PANE_PROPS, PASTE_CACHE, PLUGIN, PNG_1X1, runCommand, s
 
 describe('/media-view', () => {
   test('lists the session’s pasted and read images in the gallery pane', async ($, on) => {
-    await startSession($, on)
+    const { clock } = await startSession($, on)
     await $.ui.mount({
       plugin: PLUGIN,
       surface: 'terminal',
@@ -28,6 +28,8 @@ describe('/media-view', () => {
       viewport: { columns: 80, rows: 24 },
     })
 
+    // Picture records are kept once the drawing is over.
+    await clock.advance(0)
     const opened = await runCommand($, '')
     const pane = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'media-view' })
 
@@ -57,7 +59,7 @@ describe('/media-view', () => {
   })
 
   test('offers to show in chat only the images the transcript drew', async ($, on) => {
-    await startSession($, on)
+    const { clock } = await startSession($, on)
     await $.ui.mount({
       plugin: PLUGIN,
       surface: 'terminal',
@@ -67,6 +69,8 @@ describe('/media-view', () => {
       viewport: { columns: 80, rows: 24 },
     })
 
+    // Picture records are kept once the drawing is over.
+    await clock.advance(0)
     await runCommand($, '')
     const pane = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'media-view' })
 

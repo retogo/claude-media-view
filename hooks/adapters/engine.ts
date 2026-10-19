@@ -1,7 +1,8 @@
+import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import { isWindows, joinPath, osFrom, READ_BLOCK_BYTES, readChunkCommand, tmpRootFor } from '../domain/platform'
-import type { Host, Ports } from '../usecases/ports'
+import type { Host, Ports, SeenImage } from '../usecases/ports'
 
 const CACHE_DIRECTORY = 'media-view'
 const MIB = 1024 * 1024
@@ -10,6 +11,10 @@ const FS_READ_LIMIT_BYTES = 4 * MIB
 const MAX_FILE_BYTES = 64 * MIB
 // Base64 of a chunk, line breaks included, stays under a process's 4 MiB of output.
 const CHUNK_BYTES = 32 * READ_BLOCK_BYTES
+
+// The gallery's records live in the session's state, which a hot reload of the module leaves (ADR 0021).
+const seenImages = atom({ plugin: 'media-view', key: 'seenImages' } as const, [])
+const imageTagRows = atom({ plugin: 'media-view', key: 'imageTagRows' } as const, {})
 
 let host: Promise<Host> | undefined
 
@@ -55,6 +60,11 @@ async function readWhole($: EngineInterface, path: string) {
   return bytes
 }
 
+// Runs a state write once the current dispatch is over: a render hook may only read state.
+function afterDrawing($: EngineInterface, write: () => Promise<unknown>) {
+  $.clock.after(0, () => void write())
+}
+
 // The usecases' ports over this hook's `$` (ADR 0015).
 export function enginePorts($: EngineInterface): Ports {
   return {
@@ -67,6 +77,20 @@ export function enginePorts($: EngineInterface): Ports {
       const asked = await $.tool.call({ tool: 'Read', file_path: path })
       return asked.deny ?? (asked.isError ? asked.text : undefined)
     },
+    // A render may not write state, and only a render knows the row: the write waits for the render to end.
+    rememberSeen: async image => {
+      const isKept = (images: readonly SeenImage[]) => images.some(({ key }) => key === image.key)
+      if (!isKept(await read($, seenImages))) {
+        afterDrawing($, () => update($, seenImages, images => (isKept(images) ? images : [...images, image])))
+      }
+    },
+    seenImages: async () => [...(await read($, seenImages))],
+    rememberImageTagRow: async (n, rowId) => {
+      if ((await read($, imageTagRows))[n] === undefined) {
+        afterDrawing($, () => update($, imageTagRows, rows => (rows[n] === undefined ? { ...rows, [n]: rowId } : rows)))
+      }
+    },
+    imageTagRowOf: async n => (await read($, imageTagRows))[n],
     listDirectory: async path => (await $.fs.list(path)).map(({ name, kind }) => ({ name, kind })),
     exists: path => $.fs.exists(path),
     run: async ({ argv, init }) => {

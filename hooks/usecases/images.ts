@@ -15,27 +15,12 @@ const DRAWN_LIMITS = { maxEdge: 512, maxStillEdge: 1024, maxFrames: 200 }
 // Write processes running at once, across every picture (ADR 0007).
 const CONCURRENT_WRITES = 4
 
-// An image the transcript drew from a tool's result, with the session and row that drew it: `path` is the file a
-// Read read, absent for an image a tool answered with; `label` names it, by its path or its tool; `callId` is the
-// tool call that answered with it, when the row says.
-export type SeenImage = {
-  key: string
-  path: string | undefined
-  label: string
-  callId: string | undefined
-  picture: Promise<Picture | null>
-  sessionId: string
-  rowId: string
-}
-
 // A source not there yet (a paste Claude Code is still writing): a failure to retry, not "no picture".
 class NotWrittenYet extends Error {}
 
 const pictures = new Map<string, Promise<Picture | null>>()
 const plans = new Map<string, Plan>()
 const failures = new Map<string, number>()
-const seen = new Map<string, SeenImage>()
-const imageTagRows = new Map<string, string>()
 const readPaths = new Map<string, string>()
 const pasteCaches = new Map<string, string>()
 
@@ -155,20 +140,6 @@ const readImageTag = async (ports: Ports, sessionId: string, n: number): Promise
 // The picture of `[Image #n]`, from the session's paste cache (ADR 0004).
 export const loadImageTag = (ports: Ports, sessionId: string, n: number) =>
   loadPicture(ports, `paste/${sessionId}/${n}`, () => readImageTag(ports, sessionId, n))
-
-export const rememberSeen = (image: SeenImage) => {
-  seen.set(image.key, image)
-}
-
-// The images the transcript drew from tools' results in a session, oldest first.
-export const seenImages = (sessionId: string) => [...seen.values()].filter(image => image.sessionId === sessionId)
-
-export const rememberImageTagRow = (sessionId: string, n: number, rowId: string) => {
-  imageTagRows.set(`${sessionId}/${n}`, rowId)
-}
-
-// The transcript row that drew `[Image #n]`, if one has.
-export const imageTagRowOf = (sessionId: string, n: number) => imageTagRows.get(`${sessionId}/${n}`)
 
 // The file a Read call read, kept from its `tool.call` for rows whose props do not carry it.
 export const rememberReadPath = (toolUseId: string, path: string) => {

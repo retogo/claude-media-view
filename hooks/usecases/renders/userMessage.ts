@@ -1,5 +1,5 @@
 import { imageTagNumbers } from '../../domain/imageTags'
-import { loadImageTag, rememberImageTagRow } from '../images'
+import { loadImageTag } from '../images'
 import type { Ports } from '../ports'
 import { isShown, placeInRows, type PictureRows, type Shown } from './pictureRows'
 
@@ -19,7 +19,7 @@ export const userMessage = async (
     return null
   }
   const sessionId = await ports.sessionId()
-  numbers.forEach(n => rememberImageTagRow(sessionId, n, requestId))
+  await Promise.all(numbers.map(n => ports.rememberImageTagRow(n, requestId)))
   const shown: Shown[] = (
     await Promise.all(numbers.map(n => loadImageTag(ports, sessionId, n).then(picture => picture && { key: `paste-${n}`, picture })))
   ).filter(isShown)

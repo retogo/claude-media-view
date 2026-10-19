@@ -58,3 +58,4 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0018](0018-images-in-mcp-tool-results.md) | Images in MCP tool results are drawn from the result itself | Accepted |
 | [0019](0019-scale-by-area-average.md) | Pictures are scaled by the average of the area each pixel covers | Accepted |
 | [0020](0020-gallery-times-from-calls-and-prompts.md) | The gallery's times are kept when a call answers or a prompt is sent | Accepted |
+| [0021](0021-gallery-records-in-session-state.md) | The gallery's records live in the session's state | Accepted |

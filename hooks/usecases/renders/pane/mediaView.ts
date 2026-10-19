@@ -3,7 +3,7 @@ import { mediaTypeOf } from '../../../domain/media/decode'
 import { formatShownAt, pasteShownAtKey } from '../../../domain/shownAt'
 import type { Picture } from '../../../domain/media/frameCache'
 import { joinPath } from '../../../domain/platform'
-import { imageTagRowOf, loadImageTag, pasteCacheOf, seenImages } from '../../images'
+import { loadImageTag, pasteCacheOf } from '../../images'
 import type { Ports } from '../../ports'
 
 export const MEDIA_VIEW_PANE = 'media-view'
@@ -61,18 +61,16 @@ const pastedImages = async (ports: Ports, sessionId: string) => {
       label: path,
       path,
       picture: await loadImageTag(ports, sessionId, n),
-      rowId: imageTagRowOf(sessionId, n),
+      rowId: await ports.imageTagRowOf(n),
     })),
   )
 }
 
 // An image a tool answered with has no file of its own; its picture's first frame in the frame cache stands in.
-const toolImages = async (sessionId: string) =>
-  (await Promise.all(seenImages(sessionId).reverse().map(async seen => ({ seen, picture: await seen.picture })))).flatMap(({ seen, picture }) =>
-    picture === null
-      ? []
-      : [{ id: `read-${seen.key}`, timeKey: seen.callId, label: seen.label, path: seen.path ?? picture.frames[0]!.source.file, picture, rowId: seen.rowId }],
-  )
+const toolImages = async (ports: Ports) =>
+  (await ports.seenImages())
+    .reverse()
+    .map(({ key, callId, label, path, picture, rowId }) => ({ id: `read-${key}`, timeKey: callId, label, path: path ?? picture.frames[0]!.source.file, picture, rowId }))
 
 // Every image of the session: pasted ones newest first, then the ones tools' results drew, newest first.
 // `shownAt` holds when each image showed in the chat, by tool call id or by `pasteShownAtKey`.
@@ -81,7 +79,7 @@ export const mediaViewPane = async (
   { bodyColumns, scroll, shownAt }: { bodyColumns: number; scroll: PaneScroll; shownAt: Readonly<Record<string, number>> },
 ): Promise<MediaViewEntry[]> => {
   const sessionId = await ports.sessionId()
-  const shown = [...(await pastedImages(ports, sessionId)), ...(await toolImages(sessionId))].flatMap(entry =>
+  const shown = [...(await pastedImages(ports, sessionId)), ...(await toolImages(ports))].flatMap(entry =>
     entry.picture === null
       ? []
       : [{ ...entry, picture: entry.picture, box: cellBox(entry.picture, { maxColumns: Math.min(MAX_COLUMNS, bodyColumns), maxRows: MAX_ROWS }) }],
