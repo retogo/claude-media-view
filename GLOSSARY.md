@@ -25,10 +25,11 @@ Each folder names the event its usecases answer; the file names the matcher's va
 | Folder          | Event                                                             |
 | --------------- | ----------------------------------------------------------------- |
 | `renders/`      | `ui.render`, by `component` (`pane/` adds the pane's `requestId`) |
-| `toolCalls/`    | `tool.call`, by the tool's short name                             |
+| `toolCalls/`    | `tool.call`, by the tool's short name; `anyTool` for every call   |
 | `commandRuns/`  | `command.run`, by command                                         |
 | `closes/`       | `ui.close`, by pane id                                            |
 | `sessionStarts` | `session.start`                                                   |
+| `promptSubmits` | `prompt.submit`                                                   |
 
 ## This project's words
 
@@ -44,5 +45,6 @@ Each folder names the event its usecases answer; the file names the matcher's va
 | frame cache   | `<tmp root>/media-view/<key hash>/`, where pictures are written once                                 |
 | cell box      | The columns and rows of terminal cells a picture is drawn in                                         |
 | seen image    | An image the transcript drew from a tool's result, kept with the row (`requestId`) that drew it and its path (a Read's) or its tool (an MCP tool's) |
+| shown at      | When an image showed in the chat: its tool call answered, or its prompt was sent from the composer |
 | blit loop     | A timer swapping a GIF's frames on one keyed `Image` until stopped                                   |
 | terminal deny | A blit refused because the terminal draws the `Image`'s alt here, not because it was not mounted yet |

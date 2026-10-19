@@ -17,7 +17,7 @@ export const toolResult = async (
   const pictures = images.map((load, n) => {
     const key = n === 0 ? toolUseId : `${toolUseId}/${n}`
     const picture = loadPicture(ports, key, async () => load())
-    rememberSeen({ key, path, label: path ?? tool, picture, sessionId, rowId: toolUseId })
+    rememberSeen({ key, path, label: path ?? tool, callId: toolUseId, picture, sessionId, rowId: toolUseId })
     return picture
   })
   const shown: Shown[] = (await Promise.all(pictures.map((picture, n) => picture.then(loaded => loaded && { key: `image-${n}`, picture: loaded })))).filter(isShown)

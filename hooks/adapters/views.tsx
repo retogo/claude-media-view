@@ -87,9 +87,9 @@ export function drawMediaViewPane($: EngineInterface, e: RenderInputOf<'Pane', '
 
   return (
     <Box flexDirection="column" gap={ENTRY_GAP}>
-      {entries.map(({ id, label, path, picture, box, rowId }) => (
+      {entries.map(({ id, label, heading, path, picture, box, rowId }) => (
         <Box flexDirection="column">
-          <Text>{label}</Text>
+          <Text>{heading}</Text>
           <Box flexDirection="row" gap={BUTTON_GAP}>
             <Button key={`copy-${id}`} label="Copy path" onPress={() => buttons.copyPath(path)} />
             <Button key={`open-${id}`} label="Open" onPress={() => buttons.open(path)} />

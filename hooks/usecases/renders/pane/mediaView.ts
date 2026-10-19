@@ -1,5 +1,6 @@
 import { cellBox, type CellBox } from '../../../domain/layout'
 import { mediaTypeOf } from '../../../domain/media/decode'
+import { formatShownAt, pasteShownAtKey } from '../../../domain/shownAt'
 import type { Picture } from '../../../domain/media/frameCache'
 import { joinPath } from '../../../domain/platform'
 import { imageTagRowOf, loadImageTag, pasteCacheOf, seenImages } from '../../images'
@@ -12,13 +13,16 @@ const MAX_ROWS = 8
 // Rows between entries, and the row each entry's buttons take.
 export const ENTRY_GAP = 1
 const BUTTON_ROWS = 1
+// Between an entry's time and its label.
+const HEADING_GAP = '  '
 
-// One image of the media-view pane: `label` names it, `path` is the file its buttons copy and open, `rowId` is the
-// transcript row to show it in, when one drew it, and `isVisible` says whether any of its rows is inside the
-// pane's scroll window.
+// One image of the media-view pane: `label` names it and `heading` puts the time it showed in the chat before
+// that, when known; `path` is the file its buttons copy and open, `rowId` is the transcript row to show it in,
+// when one drew it, and `isVisible` says whether any of its rows is inside the pane's scroll window.
 export type MediaViewEntry = {
   id: string
   label: string
+  heading: string
   path: string
   picture: Picture
   box: CellBox
@@ -53,6 +57,7 @@ const pastedImages = async (ports: Ports, sessionId: string) => {
   return Promise.all(
     numbered.map(async ({ n, path }) => ({
       id: `paste-${n}`,
+      timeKey: pasteShownAtKey(n),
       label: path,
       path,
       picture: await loadImageTag(ports, sessionId, n),
@@ -66,13 +71,14 @@ const toolImages = async (sessionId: string) =>
   (await Promise.all(seenImages(sessionId).reverse().map(async seen => ({ seen, picture: await seen.picture })))).flatMap(({ seen, picture }) =>
     picture === null
       ? []
-      : [{ id: `read-${seen.key}`, label: seen.label, path: seen.path ?? picture.frames[0]!.source.file, picture, rowId: seen.rowId }],
+      : [{ id: `read-${seen.key}`, timeKey: seen.callId, label: seen.label, path: seen.path ?? picture.frames[0]!.source.file, picture, rowId: seen.rowId }],
   )
 
 // Every image of the session: pasted ones newest first, then the ones tools' results drew, newest first.
+// `shownAt` holds when each image showed in the chat, by tool call id or by `pasteShownAtKey`.
 export const mediaViewPane = async (
   ports: Ports,
-  { bodyColumns, scroll }: { bodyColumns: number; scroll: PaneScroll },
+  { bodyColumns, scroll, shownAt }: { bodyColumns: number; scroll: PaneScroll; shownAt: Readonly<Record<string, number>> },
 ): Promise<MediaViewEntry[]> => {
   const sessionId = await ports.sessionId()
   const shown = [...(await pastedImages(ports, sessionId)), ...(await toolImages(sessionId))].flatMap(entry =>
@@ -81,10 +87,12 @@ export const mediaViewPane = async (
       : [{ ...entry, picture: entry.picture, box: cellBox(entry.picture, { maxColumns: Math.min(MAX_COLUMNS, bodyColumns), maxRows: MAX_ROWS }) }],
   )
   let top = 0
-  return shown.map(entry => {
-    const rows = Math.ceil(entry.label.length / bodyColumns) + BUTTON_ROWS + entry.box.rows
+  return shown.map(({ timeKey, ...entry }) => {
+    const at = timeKey === undefined ? undefined : shownAt[timeKey]
+    const heading = at === undefined ? entry.label : `${formatShownAt(at)}${HEADING_GAP}${entry.label}`
+    const rows = Math.ceil(heading.length / bodyColumns) + BUTTON_ROWS + entry.box.rows
     const isVisible = top < scroll.offset + scroll.bodyRows && top + rows > scroll.offset
     top += rows + ENTRY_GAP
-    return { ...entry, isVisible }
+    return { ...entry, heading, isVisible }
   })
 }

@@ -16,8 +16,17 @@ const DRAWN_LIMITS = { maxEdge: 512, maxStillEdge: 1024, maxFrames: 200 }
 const CONCURRENT_WRITES = 4
 
 // An image the transcript drew from a tool's result, with the session and row that drew it: `path` is the file a
-// Read read, absent for an image a tool answered with; `label` names it, by its path or its tool.
-export type SeenImage = { key: string; path: string | undefined; label: string; picture: Promise<Picture | null>; sessionId: string; rowId: string }
+// Read read, absent for an image a tool answered with; `label` names it, by its path or its tool; `callId` is the
+// tool call that answered with it, when the row says.
+export type SeenImage = {
+  key: string
+  path: string | undefined
+  label: string
+  callId: string | undefined
+  picture: Promise<Picture | null>
+  sessionId: string
+  rowId: string
+}
 
 // A source not there yet (a paste Claude Code is still writing): a failure to retry, not "no picture".
 class NotWrittenYet extends Error {}

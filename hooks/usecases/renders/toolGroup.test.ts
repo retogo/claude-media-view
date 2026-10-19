@@ -45,6 +45,6 @@ describe('toolGroup', () => {
     })
     const { ports: newSession } = fakePorts({}, { sessionId: async () => 'session-new' })
 
-    expect((await mediaViewPane(newSession, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 } })).map(entry => entry.path)).toEqual([])
+    expect((await mediaViewPane(newSession, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {} })).map(entry => entry.path)).toEqual([])
   })
 })

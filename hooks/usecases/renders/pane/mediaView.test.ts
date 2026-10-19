@@ -27,7 +27,7 @@ describe('mediaViewPane', () => {
       viewportColumns: 80,
     })
 
-    expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 } })).map(entry => entry.path)).toEqual(['/work/chart.png'])
+    expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {} })).map(entry => entry.path)).toEqual(['/work/chart.png'])
   })
 
   test('lists an image a standalone ToolResult row drew, by the path its Read call read', async () => {
@@ -41,7 +41,7 @@ describe('mediaViewPane', () => {
       viewportColumns: 80,
     })
 
-    expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 } })).map(entry => [entry.path, entry.rowId])).toEqual([['/work/standalone.png', 'toolu_standalone']])
+    expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {} })).map(entry => [entry.path, entry.rowId])).toEqual([['/work/standalone.png', 'toolu_standalone']])
   })
 
   describe('images MCP tools answered with', () => {
@@ -52,7 +52,7 @@ describe('mediaViewPane', () => {
     ]
     const cachedFile = expect.stringMatching(/^\/tmp\/claude-501\/media-view\/[0-9a-f]{16}\/0\.png$/)
     const listed = async (ports: Parameters<typeof mediaViewPane>[0]) =>
-      (await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 } })).map(({ label, path, rowId }) => ({ label, path, rowId }))
+      (await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {} })).map(({ label, path, rowId }) => ({ label, path, rowId }))
 
     test('lists one a ToolGroup row drew, by its tool, with its cached file as its path', async () => {
       const { ports } = fakePorts({}, { sessionId: async () => 'session-shot-group' })
@@ -72,6 +72,38 @@ describe('mediaViewPane', () => {
       await toolResult(ports, { toolUseId: 'toolu_shot_result', tool: SCREENSHOT_TOOL, output: screenshotOutput, viewportColumns: 80 })
 
       expect(await listed(ports)).toEqual([{ label: SCREENSHOT_TOOL, path: cachedFile, rowId: 'toolu_shot_result' }])
+    })
+  })
+
+  describe('when each image showed in the chat', () => {
+    test('heads an entry with the time its call answered, before its label', async () => {
+      const { ports } = fakePorts({}, { sessionId: async () => 'session-timed' })
+      await toolResult(ports, {
+        toolUseId: 'toolu_timed',
+        tool: 'mcp__claude-in-chrome__computer',
+        output: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_BASE64 } }],
+        viewportColumns: 80,
+      })
+      const shownAt = { toolu_timed: new Date(2026, 9, 19, 15, 22).getTime() }
+
+      const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt })
+
+      expect(entry?.heading).toBe('2026-10-19 15:22  mcp__claude-in-chrome__computer')
+    })
+
+    test('heads an entry with its label alone when the time is not known', async () => {
+      const { ports } = fakePorts({}, { sessionId: async () => 'session-untimed' })
+      rememberReadPath('toolu_untimed', '/work/untimed.png')
+      await toolResult(ports, {
+        toolUseId: 'toolu_untimed',
+        tool: 'Read',
+        output: { type: 'image', file: { base64: PNG_BASE64, type: 'image/png', originalSize: 1 } },
+        viewportColumns: 80,
+      })
+
+      const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {} })
+
+      expect(entry?.heading).toBe('/work/untimed.png')
     })
   })
 })

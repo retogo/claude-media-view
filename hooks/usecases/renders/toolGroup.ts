@@ -22,7 +22,7 @@ export const toolGroup = async (
     const picture = loadPicture(ports, key, async () => load())
     const inputPath = (call.input as { file_path?: unknown } | undefined)?.file_path
     const path = call.tool !== 'Read' ? undefined : typeof inputPath === 'string' ? inputPath : readPathOf(key)
-    rememberSeen({ key, path, label: path ?? call.tool, picture, sessionId, rowId: requestId })
+    rememberSeen({ key, path, label: path ?? call.tool, callId: call.tool_use_id, picture, sessionId, rowId: requestId })
     return picture.then(loaded => loaded && { key: `image-${i}-${n}`, picture: loaded })
   })
   const shown: Shown[] = (await Promise.all(loading)).filter(isShown)
