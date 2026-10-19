@@ -4,11 +4,13 @@ import type { CellBox } from '../domain/layout'
 import type { SettingKey } from '../domain/settings'
 import { TILE_GAP, type AbovePromptTiles } from '../usecases/renders/abovePrompt'
 import { ENTRY_GAP, PANE_PADDING, type MediaViewEntry } from '../usecases/renders/pane/mediaView'
-import type { SettingEntry } from '../usecases/renders/pane/settings'
+import type { SettingSection } from '../usecases/renders/pane/settings'
 import { PICTURE_GAP, type PictureRows } from '../usecases/renders/pictureRows'
 import { animate, reportDeny, stopAnimation, stopAnimations, stopAnimationsExcept, type Site } from './animator'
 
 const BUTTON_GAP = 1
+// Rows between the settings pane's sections.
+const SECTION_GAP = 1
 
 // An Image of another size is another Image: the terminal keeps an unchanged source at the size it was first sent (ADR 0017).
 const sizedKey = (key: string, { columns, rows }: CellBox) => `${key}@${columns}x${rows}`
@@ -108,14 +110,19 @@ export function drawMediaViewPane($: EngineInterface, e: RenderInputOf<'Pane', '
   )
 }
 
-// What media-view draws, each a button that turns it on or off.
-export function drawSettingsPane($: EngineInterface, e: RenderInputOf<'Pane', 'terminal'>, entries: SettingEntry[], toggle: (key: SettingKey) => unknown) {
+// What media-view draws, each a button that turns it on or off, under its section's title.
+export function drawSettingsPane($: EngineInterface, e: RenderInputOf<'Pane', 'terminal'>, sections: SettingSection[], toggle: (key: SettingKey) => unknown) {
   const { Box, Button, Text } = $.ui.resolve(e)
   return (
-    <Box flexDirection="column" paddingTop={PANE_PADDING.top} paddingX={PANE_PADDING.x}>
+    <Box flexDirection="column" gap={SECTION_GAP} paddingTop={PANE_PADDING.top} paddingX={PANE_PADDING.x}>
       <Text dimColor>What media-view draws, kept for every session:</Text>
-      {entries.map(({ key, label, isOn }) => (
-        <Button key={`setting-${key}`} label={`[${isOn ? 'x' : ' '}] ${label}`} onPress={() => toggle(key)} />
+      {sections.map(({ title, entries }) => (
+        <Box flexDirection="column">
+          <Text bold>{title}</Text>
+          {entries.map(({ key, label, isOn }) => (
+            <Button key={`setting-${key}`} label={`[${isOn ? 'x' : ' '}] ${label}`} onPress={() => toggle(key)} />
+          ))}
+        </Box>
       ))}
     </Box>
   )

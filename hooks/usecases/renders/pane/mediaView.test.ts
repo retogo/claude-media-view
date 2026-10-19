@@ -118,7 +118,7 @@ describe('mediaViewPane', () => {
       label: '/work/kept.png',
       shownAtKey: 'toolu_kept',
       rowId: 'group-kept',
-      setting: 'readImages' as const,
+      setting: 'toolCalls' as const,
       picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] },
     }
 
@@ -146,7 +146,7 @@ describe('mediaViewPane', () => {
   })
 
   test('lays entries out below the pane’s top padding and within its side padding', async () => {
-    const { ports } = fakePorts({}, { seenImages: async () => [{ key: 'toolu_pad', label: 'x'.repeat(79), rowId: 'group-pad', setting: 'toolImages', picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] } }] })
+    const { ports } = fakePorts({}, { seenImages: async () => [{ key: 'toolu_pad', label: 'x'.repeat(79), rowId: 'group-pad', setting: 'toolCalls', picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] } }] })
 
     const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 1 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })
     const [below] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 3, bodyRows: 1 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })

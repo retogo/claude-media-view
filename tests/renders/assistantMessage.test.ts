@@ -26,7 +26,7 @@ describe('AssistantMessage', () => {
 
   test('leaves the reply alone when image files named in replies are turned off', async ($, on) => {
     on('tool.check', { tool: 'Read' }, () => ({ decision: 'allow' }))
-    await startSession($, on, { files: [CHART], stored: { settings: { replyPaths: false } } })
+    await startSession($, on, { files: [CHART], stored: { settings: { assistantMessages: false } } })
 
     expect(await (await mountReply($, 'reply-off')).find({ type: 'Image' })).toBeUndefined()
   })

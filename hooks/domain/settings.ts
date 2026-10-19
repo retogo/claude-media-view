@@ -1,31 +1,35 @@
-// What media-view draws, each the person's to turn off in the settings pane, in the order the pane lists them.
-export const SETTING_KEYS = ['abovePrompt', 'sentPastes', 'readImages', 'toolImages', 'replyPaths', 'animateGifs'] as const
+// Where media-view shows images, each named after the Claude Code component it draws in, and how it plays GIFs
+// (ADR 0027), each the person's to turn off in the settings pane.
+export const SHOW_SETTING_KEYS = ['abovePrompt', 'userMessages', 'toolCalls', 'assistantMessages'] as const
+export const PLAY_SETTING_KEYS = ['animateGifs'] as const
+export const SETTING_KEYS = [...SHOW_SETTING_KEYS, ...PLAY_SETTING_KEYS] as const
 
 export type SettingKey = (typeof SETTING_KEYS)[number]
 
 export type Settings = Record<SettingKey, boolean>
 
-// The settings that each let one kind of image be shown, in the chat and in the gallery alike.
-export type ShowSetting = Exclude<SettingKey, 'animateGifs'>
+// The settings that each let images be shown in one place, in the chat and in the gallery alike.
+export type ShowSetting = (typeof SHOW_SETTING_KEYS)[number]
 
-// The setting a tool's images are shown under.
-export const toolImageSetting = (tool: string): ShowSetting => (tool === 'Read' ? 'readImages' : 'toolImages')
+// The settings pane's sections, in the order the person reads them.
+export const SETTING_SECTIONS: readonly { title: string; keys: readonly SettingKey[] }[] = [
+  { title: 'Show images', keys: SHOW_SETTING_KEYS },
+  { title: 'GIFs', keys: PLAY_SETTING_KEYS },
+]
 
 export const SETTING_LABELS: Record<SettingKey, string> = {
-  abovePrompt: 'Pasted images above the prompt',
-  sentPastes: 'Pasted images in sent prompts',
-  readImages: 'Images Claude reads',
-  toolImages: 'Images tools answer with',
-  replyPaths: 'Image files named in replies',
+  abovePrompt: 'Above the prompt',
+  userMessages: 'Under prompts you sent',
+  toolCalls: 'Under Claude’s tool calls',
+  assistantMessages: 'Under Claude’s replies',
   animateGifs: 'Animate GIFs',
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   abovePrompt: true,
-  sentPastes: true,
-  readImages: true,
-  toolImages: true,
-  replyPaths: true,
+  userMessages: true,
+  toolCalls: true,
+  assistantMessages: true,
   animateGifs: true,
 }
 

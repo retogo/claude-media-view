@@ -23,39 +23,44 @@ const mountGallery = async ($: Engine) => {
 }
 
 describe('/media-view settings', () => {
-  test('lists what media-view draws, every one on by default', async ($, on) => {
+  test('lists where media-view shows images, then how it plays GIFs, every one on by default', async ($, on) => {
     await startSession($, on)
 
     const pane = await mountSettings($)
 
-    expect((await pane.findAll({ type: 'Button' })).map(button => button.key)).toEqual([
+    const lines = (await pane.findAll({})).flatMap(node =>
+      node.type === 'Button' ? [node.key] : node.type === 'Text' && ['Show images', 'GIFs'].includes(String(node.text)) ? [node.text] : [],
+    )
+    expect(lines).toEqual([
+      'Show images',
       'setting-abovePrompt',
-      'setting-sentPastes',
-      'setting-readImages',
-      'setting-toolImages',
-      'setting-replyPaths',
+      'setting-userMessages',
+      'setting-toolCalls',
+      'setting-assistantMessages',
+      'GIFs',
       'setting-animateGifs',
     ])
-    expect(await pane.find({ type: 'Button', key: 'setting-readImages', text: '[x] Images Claude reads' })).toBeDefined()
+    expect(await pane.find({ type: 'Button', key: 'setting-toolCalls', text: '[x] Under Claude’s tool calls' })).toBeDefined()
+    expect(await pane.find({ type: 'Button', key: 'setting-userMessages', text: '[x] Under prompts you sent' })).toBeDefined()
   })
 
   test('turns one off with a press, keeps it, and draws no such image after', async ($, on) => {
     const { store } = await startSession($, on)
     const pane = await mountSettings($)
 
-    await pane.press({ key: 'setting-readImages' })
+    await pane.press({ key: 'setting-toolCalls' })
 
-    expect(await pane.find({ type: 'Button', key: 'setting-readImages', text: '[ ] Images Claude reads' })).toBeDefined()
-    expect(store.get('settings')).toMatchObject({ readImages: false, toolImages: true })
+    expect(await pane.find({ type: 'Button', key: 'setting-toolCalls', text: '[ ] Under Claude’s tool calls' })).toBeDefined()
+    expect(store.get('settings')).toMatchObject({ toolCalls: false, assistantMessages: true })
     expect(await (await mountGroup($, 'group-off', [readCall('toolu_off', PNG_1X1, 'image/png')])).find({ type: 'Image' })).toBeUndefined()
   })
 
   test('starts a session with the settings the store kept', async ($, on) => {
-    await startSession($, on, { stored: { settings: { toolImages: false } } })
+    await startSession($, on, { stored: { settings: { toolCalls: false } } })
 
     const group = await mountGroup($, 'group-kept', [readCall('toolu_read_kept', PNG_1X1, 'image/png'), screenshotCall('toolu_shot_kept', PNG_1X1, 'image/png')])
 
-    expect(await group.findAll({ type: 'Image' })).toHaveLength(1)
+    expect(await group.findAll({ type: 'Image' })).toHaveLength(0)
   })
 
   test('opens from its command alone: the gallery has no button of its own for it', async ($, on) => {
@@ -81,10 +86,10 @@ describe('/media-view settings', () => {
       const group = await mountGroup($, 'group-shown', [readCall('toolu_shown', PNG_1X1, 'image/png')])
       const settings = await mountSettings($)
 
-      await settings.press({ key: 'setting-readImages' })
+      await settings.press({ key: 'setting-toolCalls' })
       expect(await group.find({ type: 'Image' })).toBeUndefined()
 
-      await settings.press({ key: 'setting-readImages' })
+      await settings.press({ key: 'setting-toolCalls' })
       expect(await group.find({ type: 'Image' })).toBeDefined()
     })
 
@@ -95,15 +100,16 @@ describe('/media-view settings', () => {
       const gallery = await mountGallery($)
       const settings = await mountSettings($)
 
-      await settings.press({ key: 'setting-readImages' })
+      await settings.press({ key: 'setting-toolCalls' })
       expect(await gallery.find({ type: 'Text', text: '/pictures/toolu_both' })).toBeUndefined()
-      expect(await gallery.find({ type: 'Text', text: 'mcp__claude-in-chrome__computer' })).toBeDefined()
+      expect(await gallery.find({ type: 'Text', text: 'mcp__claude-in-chrome__computer' })).toBeUndefined()
 
-      await settings.press({ key: 'setting-readImages' })
+      await settings.press({ key: 'setting-toolCalls' })
       expect(await gallery.find({ type: 'Text', text: '/pictures/toolu_both' })).toBeDefined()
+      expect(await gallery.find({ type: 'Text', text: 'mcp__claude-in-chrome__computer' })).toBeDefined()
     })
 
-    test('lists a paste in the draft by the setting above the prompt, and a sent one by the sent prompts’ setting', async ($, on) => {
+    test('lists a paste in the draft by the setting above the prompt, and a sent one by the one under sent prompts', async ($, on) => {
       on('prompt.submit', (_$, e) => ({ text: e.text }))
       const draft = { text: '[Image #2]' }
       const { clock } = await startSession($, on, { draft })
@@ -117,7 +123,7 @@ describe('/media-view settings', () => {
       expect(await gallery.find({ type: 'Text', text: `${PASTE_CACHE}/3.png` })).toBeUndefined()
       expect(await gallery.find({ type: 'Text', text: `${PASTE_CACHE}/2.png` })).toBeDefined()
 
-      await settings.press({ key: 'setting-sentPastes' })
+      await settings.press({ key: 'setting-userMessages' })
       expect(await gallery.find({ type: 'Text', text: `${PASTE_CACHE}/2.png` })).toBeUndefined()
     })
   })

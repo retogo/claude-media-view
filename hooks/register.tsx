@@ -6,7 +6,7 @@ import { drawnUnlessSuperseded } from './adapters/superseded'
 import { enginePorts } from './adapters/engine'
 import { drawAbovePrompt, drawMediaViewPane, drawPictureRows, drawSettingsPane } from './adapters/views'
 import { openCommand } from './domain/platform'
-import { DEFAULT_SETTINGS, settingsFrom, toggled, toolImageSetting, type Settings } from './domain/settings'
+import { DEFAULT_SETTINGS, settingsFrom, toggled, type Settings } from './domain/settings'
 import { mediaViewClosed } from './usecases/closes/mediaView'
 import { mediaView } from './usecases/commandRuns/mediaView'
 import { rememberReadPath } from './usecases/images'
@@ -124,12 +124,9 @@ export const register: Register = on => {
           return next(e)
         }
         const shows = await read($, settings)
-        const rows = await toolGroup(portsFor($), {
-          requestId: e.requestId,
-          calls: e.props.calls,
-          viewportColumns: e.viewport?.columns,
-          showsTool: tool => shows[toolImageSetting(tool)],
-        })
+        const rows = shows.toolCalls
+          ? await toolGroup(portsFor($), { requestId: e.requestId, calls: e.props.calls, viewportColumns: e.viewport?.columns })
+          : null
         const own = await next(e)
         return rows === null ? own : drawPictureRows($, e, { site: 'ToolGroup', own, rows, isAnimated: shows.animateGifs })
       },
@@ -145,13 +142,14 @@ export const register: Register = on => {
           return next(e)
         }
         const shows = await read($, settings)
-        const rows = await toolResult(portsFor($), {
-          toolUseId: e.props.tool_use_id,
-          tool: e.props.tool,
-          output: e.props.output,
-          viewportColumns: e.viewport?.columns,
-          showsTool: tool => shows[toolImageSetting(tool)],
-        })
+        const rows = shows.toolCalls
+          ? await toolResult(portsFor($), {
+              toolUseId: e.props.tool_use_id,
+              tool: e.props.tool,
+              output: e.props.output,
+              viewportColumns: e.viewport?.columns,
+            })
+          : null
         const own = await next(e)
         return rows === null ? own : drawPictureRows($, e, { site: 'ToolResult', own, rows, isAnimated: shows.animateGifs })
       },
@@ -167,7 +165,7 @@ export const register: Register = on => {
           return next(e)
         }
         const shows = await read($, settings)
-        const rows = shows.sentPastes
+        const rows = shows.userMessages
           ? await userMessage(portsFor($), {
               requestId: e.requestId,
               text: e.props.text,
@@ -190,7 +188,7 @@ export const register: Register = on => {
           return next(e)
         }
         const shows = await read($, settings)
-        const rows = shows.replyPaths
+        const rows = shows.assistantMessages
           ? await assistantMessage(portsFor($), { requestId: e.requestId, text: e.props.text, viewportColumns: e.viewport?.columns })
           : null
         const own = await next(e)

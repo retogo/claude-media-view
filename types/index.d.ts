@@ -4,7 +4,7 @@ export type MediaViewSeenImage = {
   label: string
   shownAtKey?: string
   rowId: string
-  setting: 'abovePrompt' | 'sentPastes' | 'readImages' | 'toolImages' | 'replyPaths'
+  setting: 'abovePrompt' | 'userMessages' | 'toolCalls' | 'assistantMessages'
   picture: { width: number; height: number; frames: { source: { file: string; format: 'png' }; delayMs: number }[] }
 }
 
@@ -14,10 +14,9 @@ declare module 'claude-code' {
       // What media-view draws, loaded from the plugin's store at session start.
       settings: {
         abovePrompt: boolean
-        sentPastes: boolean
-        readImages: boolean
-        toolImages: boolean
-        replyPaths: boolean
+        userMessages: boolean
+        toolCalls: boolean
+        assistantMessages: boolean
         animateGifs: boolean
       }
       draftImageNumbers: number[]

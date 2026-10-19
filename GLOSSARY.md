@@ -47,7 +47,7 @@ Each folder names the event its usecases answer; the file names the matcher's va
 | cell box      | The columns and rows of terminal cells a picture is drawn in                                         |
 | seen image    | An image the transcript drew from a tool's result, kept with the row (`requestId`) that drew it and its path (a Read's) or its tool (an MCP tool's), and the show setting it was drawn under |
 | shown at      | When an image showed in the chat: its tool call answered, or its prompt was sent from the composer |
-| settings      | Which kinds of picture media-view draws, each on or off; kept in the plugin's store |
-| show setting  | A setting that lets one kind of image be shown, in the chat and in the gallery alike; every setting but GIF animation |
+| settings      | Where media-view shows images, and whether GIFs play, each on or off; kept in the plugin's store |
+| show setting  | A setting that lets images be shown in one place (above the prompt, under sent prompts, tool calls or replies), in the chat and in the gallery alike |
 | blit loop     | A timer swapping a GIF's frames on one keyed `Image` until stopped                                   |
 | terminal deny | A blit refused because the terminal draws the `Image`'s alt here, not because it was not mounted yet |

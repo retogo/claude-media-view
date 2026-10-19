@@ -8,7 +8,7 @@ describe('settings', () => {
   })
 
   test('read from what was stored, keeping the default for what is missing or not a yes or no', () => {
-    expect(settingsFrom({ readImages: false, toolImages: 'no', retired: false })).toEqual({ ...DEFAULT_SETTINGS, readImages: false })
+    expect(settingsFrom({ toolCalls: false, assistantMessages: 'no', retired: false })).toEqual({ ...DEFAULT_SETTINGS, toolCalls: false })
   })
 
   test('read as the defaults when nothing was stored', () => {
@@ -16,6 +16,6 @@ describe('settings', () => {
   })
 
   test('toggle one setting, leaving the rest', () => {
-    expect(toggled(DEFAULT_SETTINGS, 'replyPaths')).toEqual({ ...DEFAULT_SETTINGS, replyPaths: false })
+    expect(toggled(DEFAULT_SETTINGS, 'assistantMessages')).toEqual({ ...DEFAULT_SETTINGS, assistantMessages: false })
   })
 })

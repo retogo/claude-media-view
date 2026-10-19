@@ -73,7 +73,7 @@ const pastedImages = async (ports: Ports, sessionId: string, isShown: (n: number
 
 // The images rows drew under a setting that is on. An image a tool answered with has no file of its own; its
 // picture's first frame in the frame cache stands in.
-const toolImages = async (ports: Ports, settings: Settings) =>
+const seenImages = async (ports: Ports, settings: Settings) =>
   (await ports.seenImages())
     .filter(({ setting }) => settings[setting])
     .reverse()
@@ -96,12 +96,12 @@ export const mediaViewPane = async (
   const sessionId = await ports.sessionId()
   const columns = bodyColumns - 2 * PANE_PADDING.x
   const isDrafted = (n: number) => settings.abovePrompt && draftNumbers.includes(n)
-  const isSent = (n: number) => settings.sentPastes && pasteShownAtKey(n) in shownAt
+  const isSent = (n: number) => settings.userMessages && pasteShownAtKey(n) in shownAt
   const pastes = await pastedImages(ports, sessionId, n => isDrafted(n) || isSent(n))
   const leading = new Set(draftNumbers.filter(isDrafted).map(pasteShownAtKey))
   const rank = (timeKey: string | undefined) =>
     timeKey === undefined ? Number.NEGATIVE_INFINITY : leading.has(timeKey) ? Number.POSITIVE_INFINITY : (shownAt[timeKey] ?? Number.NEGATIVE_INFINITY)
-  const ordered = [...pastes, ...(await toolImages(ports, settings))].sort((a, b) =>
+  const ordered = [...pastes, ...(await seenImages(ports, settings))].sort((a, b) =>
     rank(a.timeKey) === rank(b.timeKey) ? 0 : rank(a.timeKey) > rank(b.timeKey) ? -1 : 1,
   )
   const shown = ordered.flatMap(entry =>
