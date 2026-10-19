@@ -5,7 +5,7 @@ A Claude Code mod that shows images and GIFs inline in the terminal — and lets
 ## What it does
 
 - **Composer preview**: pictures of pasted images above the prompt while you write, labelled `#n` like their `[Image #n]` tags.
-- **Transcript inline**: pictures under the rows that carry them — images Claude reads and images you send. GIFs play, and pause while scrolled out of view.
+- **Transcript inline**: pictures under the rows that carry them — images Claude reads, images MCP tools answer with (such as a browser's screenshots), and images you send. GIFs play, and pause while scrolled out of view.
 - **Frames for Claude**: the `frames` tool hands Claude every frame of a GIF (sampled to at most 12 by default), so it sees the motion and not only the first frame.
 - **Gallery**: `/media-view` opens a pane with every image of the session, with buttons to copy its path or open it.
 - **PNG, GIF and JPEG on macOS, Linux and Windows** with built-in decoders: nothing to install, no ffmpeg.

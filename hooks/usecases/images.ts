@@ -14,8 +14,9 @@ const DRAWN_LIMITS = { maxEdge: 512, maxFrames: 200 }
 // Write processes running at once, across every picture (ADR 0007).
 const CONCURRENT_WRITES = 4
 
-// An image the transcript drew from a Read result, with the session and row that drew it.
-export type SeenImage = { key: string; path: string; picture: Promise<Picture | null>; sessionId: string; rowId: string }
+// An image the transcript drew from a tool's result, with the session and row that drew it: `path` is the file a
+// Read read, absent for an image a tool answered with; `label` names it, by its path or its tool.
+export type SeenImage = { key: string; path: string | undefined; label: string; picture: Promise<Picture | null>; sessionId: string; rowId: string }
 
 // A source not there yet (a paste Claude Code is still writing): a failure to retry, not "no picture".
 class NotWrittenYet extends Error {}
@@ -149,7 +150,7 @@ export const rememberSeen = (image: SeenImage) => {
   seen.set(image.key, image)
 }
 
-// The images the transcript drew from Read results in a session, oldest first.
+// The images the transcript drew from tools' results in a session, oldest first.
 export const seenImages = (sessionId: string) => [...seen.values()].filter(image => image.sessionId === sessionId)
 
 export const rememberImageTagRow = (sessionId: string, n: number, rowId: string) => {

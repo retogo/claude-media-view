@@ -1,7 +1,7 @@
 import type { UiBlitArgs } from 'claude-code'
 import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
-import { GIF_TWO_FRAMES, PLUGIN, PNG_1X1, VIEWPORT, onMac, readCall, wideGif } from '../support'
+import { GIF_TWO_FRAMES, PLUGIN, PNG_1X1, VIEWPORT, onMac, readCall, screenshotCall, wideGif } from '../support'
 
 describe('ToolGroup', () => {
   test('draws a read PNG from its cached file under the group row', async ($, on) => {
@@ -19,6 +19,25 @@ describe('ToolGroup', () => {
 
     expect(image?.props.source).toEqual({ file: expect.stringMatching(/^\/tmp\/claude-501\/media-view\/[0-9a-f]{16}\/0\.png$/), format: 'png' })
     expect([image?.props.columns, image?.props.rows]).toEqual([1, 1])
+  })
+
+  test('draws a screenshot an MCP tool answered with beside a read image', async ($, on) => {
+    onMac(on)
+
+    const ui = await $.ui.mount({
+      plugin: PLUGIN,
+      surface: 'terminal',
+      component: 'ToolGroup',
+      props: {
+        calls: [readCall('toolu_read', PNG_1X1, 'image/png'), screenshotCall('toolu_shot', PNG_1X1, 'image/png')],
+        isActive: false,
+        isExpanded: false,
+      },
+      requestId: 'group-shot',
+      viewport: VIEWPORT,
+    })
+
+    expect(await ui.findAll({ type: 'Image' })).toHaveLength(2)
   })
 
   test('animates a read GIF by swapping its frame files', async ($, on) => {

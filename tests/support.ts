@@ -36,6 +36,20 @@ export const readCall = (id: string, base64: string, type: string) => ({
   output: { type: 'image', file: { base64, type, originalSize: 1 } },
 })
 
+// A browser screenshot tool's call, its result made of API content blocks.
+export const screenshotCall = (id: string, base64: string, mediaType: string) => ({
+  tool_use_id: id,
+  tool: 'mcp__claude-in-chrome__computer',
+  input: { action: 'screenshot', tabId: 1 },
+  isRunning: false,
+  isErrored: false,
+  isInterrupted: false,
+  output: [
+    { type: 'text', text: 'Successfully captured screenshot' },
+    { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+  ],
+})
+
 // A two-frame GIF of `width`×`height` whose frames each paint one pixel, 100 ms apart, as base64.
 export const wideGif = (width: number, height: number) => {
   const word = (value: number) => [value & 0xff, value >> 8]

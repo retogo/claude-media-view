@@ -14,6 +14,7 @@ The words this project uses, and where they come from. Claude Code's own names a
 | `Image`       | The terminal element that draws a picture through the kitty graphics protocol                 |
 | `[Image #n]`  | The tag Claude Code puts in a prompt for the n-th pasted image                                |
 | `Read`        | The built-in tool; its image output is `{ type: 'image', file: { base64, type } }`            |
+| content block | One block of an API message or tool result; an image is `{ type: 'image', source: { type: 'base64', data } }`, as MCP tools answer |
 | `blit`        | `$.ui.blit`: swapping a keyed `Image`'s source without a redraw; refused with a `deny` reason |
 | `requestId`   | The instance a render draws: a tool row's `tool_use_id`, a message's id, a pane's id          |
 
@@ -42,6 +43,6 @@ Each folder names the event its usecases answer; the file names the matcher's va
 | picture       | A decoded image on disk: its size and its frames, each a file source for `Image`                     |
 | frame cache   | `<tmp root>/media-view/<key hash>/`, where pictures are written once                                 |
 | cell box      | The columns and rows of terminal cells a picture is drawn in                                         |
-| seen image    | An image the transcript drew, kept with its path and the row (`requestId`) that drew it              |
+| seen image    | An image the transcript drew from a tool's result, kept with the row (`requestId`) that drew it and its path (a Read's) or its tool (an MCP tool's) |
 | blit loop     | A timer swapping a GIF's frames on one keyed `Image` until stopped                                   |
 | terminal deny | A blit refused because the terminal draws the `Image`'s alt here, not because it was not mounted yet |

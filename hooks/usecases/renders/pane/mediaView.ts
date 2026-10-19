@@ -13,9 +13,18 @@ const MAX_ROWS = 8
 export const ENTRY_GAP = 1
 const BUTTON_ROWS = 1
 
-// One image of the media-view pane: `rowId` is the transcript row to show it in, when one drew it;
-// `isVisible` says whether any of its rows is inside the pane's scroll window.
-export type MediaViewEntry = { id: string; path: string; picture: Picture; box: CellBox; rowId: string | undefined; isVisible: boolean }
+// One image of the media-view pane: `label` names it, `path` is the file its buttons copy and open, `rowId` is the
+// transcript row to show it in, when one drew it, and `isVisible` says whether any of its rows is inside the
+// pane's scroll window.
+export type MediaViewEntry = {
+  id: string
+  label: string
+  path: string
+  picture: Picture
+  box: CellBox
+  rowId: string | undefined
+  isVisible: boolean
+}
 
 export type PaneScroll = { offset: number; bodyRows: number }
 
@@ -44,6 +53,7 @@ const pastedImages = async (ports: Ports, sessionId: string) => {
   return Promise.all(
     numbered.map(async ({ n, path }) => ({
       id: `paste-${n}`,
+      label: path,
       path,
       picture: await loadImageTag(ports, sessionId, n),
       rowId: imageTagRowOf(sessionId, n),
@@ -51,27 +61,28 @@ const pastedImages = async (ports: Ports, sessionId: string) => {
   )
 }
 
-const readImages = (sessionId: string) =>
-  Promise.all(
-    seenImages(sessionId)
-      .reverse()
-      .map(async ({ key, path, picture, rowId }) => ({ id: `read-${key}`, path, picture: await picture, rowId })),
+// An image a tool answered with has no file of its own; its picture's first frame in the frame cache stands in.
+const toolImages = async (sessionId: string) =>
+  (await Promise.all(seenImages(sessionId).reverse().map(async seen => ({ seen, picture: await seen.picture })))).flatMap(({ seen, picture }) =>
+    picture === null
+      ? []
+      : [{ id: `read-${seen.key}`, label: seen.label, path: seen.path ?? picture.frames[0]!.source.file, picture, rowId: seen.rowId }],
   )
 
-// Every image of the session: pasted ones newest first, then the ones Read results drew, newest first.
+// Every image of the session: pasted ones newest first, then the ones tools' results drew, newest first.
 export const mediaViewPane = async (
   ports: Ports,
   { bodyColumns, scroll }: { bodyColumns: number; scroll: PaneScroll },
 ): Promise<MediaViewEntry[]> => {
   const sessionId = await ports.sessionId()
-  const shown = [...(await pastedImages(ports, sessionId)), ...(await readImages(sessionId))].flatMap(entry =>
+  const shown = [...(await pastedImages(ports, sessionId)), ...(await toolImages(sessionId))].flatMap(entry =>
     entry.picture === null
       ? []
       : [{ ...entry, picture: entry.picture, box: cellBox(entry.picture, { maxColumns: Math.min(MAX_COLUMNS, bodyColumns), maxRows: MAX_ROWS }) }],
   )
   let top = 0
   return shown.map(entry => {
-    const rows = Math.ceil(entry.path.length / bodyColumns) + BUTTON_ROWS + entry.box.rows
+    const rows = Math.ceil(entry.label.length / bodyColumns) + BUTTON_ROWS + entry.box.rows
     const isVisible = top < scroll.offset + scroll.bodyRows && top + rows > scroll.offset
     top += rows + ENTRY_GAP
     return { ...entry, isVisible }

@@ -43,4 +43,36 @@ describe('mediaViewPane', () => {
 
     expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 } })).map(entry => [entry.path, entry.rowId])).toEqual([['/work/standalone.png', 'toolu_standalone']])
   })
+
+  describe('images MCP tools answered with', () => {
+    const SCREENSHOT_TOOL = 'mcp__claude-in-chrome__computer'
+    const screenshotOutput = [
+      { type: 'text', text: 'Successfully captured screenshot' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_BASE64 } },
+    ]
+    const cachedFile = expect.stringMatching(/^\/tmp\/claude-501\/media-view\/[0-9a-f]{16}\/0\.png$/)
+    const listed = async (ports: Parameters<typeof mediaViewPane>[0]) =>
+      (await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 } })).map(({ label, path, rowId }) => ({ label, path, rowId }))
+
+    test('lists one a ToolGroup row drew, by its tool, with its cached file as its path', async () => {
+      const { ports } = fakePorts({}, { sessionId: async () => 'session-shot-group' })
+
+      await toolGroup(ports, {
+        requestId: 'group-shot',
+        calls: [{ tool_use_id: 'toolu_shot_group', tool: SCREENSHOT_TOOL, input: { action: 'screenshot' }, output: screenshotOutput }],
+        viewportColumns: 80,
+      })
+
+      expect(await listed(ports)).toEqual([{ label: SCREENSHOT_TOOL, path: cachedFile, rowId: 'group-shot' }])
+    })
+
+    test('lists one a standalone ToolResult row drew', async () => {
+      const { ports } = fakePorts({}, { sessionId: async () => 'session-shot-result' })
+
+      await toolResult(ports, { toolUseId: 'toolu_shot_result', tool: SCREENSHOT_TOOL, output: screenshotOutput, viewportColumns: 80 })
+
+      expect(await listed(ports)).toEqual([{ label: SCREENSHOT_TOOL, path: cachedFile, rowId: 'toolu_shot_result' }])
+    })
+  })
 })
+
