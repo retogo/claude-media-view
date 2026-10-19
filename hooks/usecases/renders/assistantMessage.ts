@@ -14,7 +14,7 @@ const replyImage = async (ports: Ports, requestId: string, path: string, i: numb
   if (picture === null) {
     return null
   }
-  await ports.rememberSeen({ key, path, label: path, shownAtKey: requestId, rowId: requestId, picture })
+  await ports.rememberSeen({ key, path, label: path, shownAtKey: requestId, rowId: requestId, setting: 'replyPaths', picture })
   await ports.rememberShownAt(requestId)
   return { key: `image-${i}`, picture }
 }

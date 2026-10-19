@@ -1,6 +1,6 @@
 import { describe, expect, test, type Engine } from 'claude-code/testing'
 
-import { PANE_PROPS, PLUGIN, PNG_1X1, VIEWPORT, readCall, runCommand, screenshotCall, startSession } from '../../support'
+import { DRAFT_POLL_MS, PANE_PROPS, PASTE_CACHE, PLUGIN, PNG_1X1, VIEWPORT, readCall, runCommand, screenshotCall, startSession } from '../../support'
 
 const mountSettings = async ($: Engine) => {
   await runCommand($, 'settings')
@@ -16,6 +16,11 @@ const mountGroup = ($: Engine, requestId: string, calls: unknown[]) =>
     requestId,
     viewport: VIEWPORT,
   })
+
+const mountGallery = async ($: Engine) => {
+  await runCommand($, '')
+  return $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', props: PANE_PROPS, requestId: 'media-view' })
+}
 
 describe('/media-view settings', () => {
   test('lists what media-view draws, every one on by default', async ($, on) => {
@@ -69,5 +74,51 @@ describe('/media-view settings', () => {
       expect(await pane.drawn()).toMatchObject({ props: { paddingTop: 1, paddingX: 1 } })
     }
   })
-})
 
+  describe('turned off and on again, for the images already shown', () => {
+    test('takes a drawn row’s picture away and draws it again', async ($, on) => {
+      await startSession($, on)
+      const group = await mountGroup($, 'group-shown', [readCall('toolu_shown', PNG_1X1, 'image/png')])
+      const settings = await mountSettings($)
+
+      await settings.press({ key: 'setting-readImages' })
+      expect(await group.find({ type: 'Image' })).toBeUndefined()
+
+      await settings.press({ key: 'setting-readImages' })
+      expect(await group.find({ type: 'Image' })).toBeDefined()
+    })
+
+    test('leaves the gallery’s images of that setting out, and lists them again', async ($, on) => {
+      const { clock } = await startSession($, on, { draft: { text: '' } })
+      await mountGroup($, 'group-both', [readCall('toolu_both', PNG_1X1, 'image/png'), screenshotCall('toolu_shot_both', PNG_1X1, 'image/png')])
+      await clock.advance(0)
+      const gallery = await mountGallery($)
+      const settings = await mountSettings($)
+
+      await settings.press({ key: 'setting-readImages' })
+      expect(await gallery.find({ type: 'Text', text: '/pictures/toolu_both' })).toBeUndefined()
+      expect(await gallery.find({ type: 'Text', text: 'mcp__claude-in-chrome__computer' })).toBeDefined()
+
+      await settings.press({ key: 'setting-readImages' })
+      expect(await gallery.find({ type: 'Text', text: '/pictures/toolu_both' })).toBeDefined()
+    })
+
+    test('lists a paste in the draft by the setting above the prompt, and a sent one by the sent prompts’ setting', async ($, on) => {
+      on('prompt.submit', (_$, e) => ({ text: e.text }))
+      const draft = { text: '[Image #2]' }
+      const { clock } = await startSession($, on, { draft })
+      await $.prompt.submit({ text: draft.text, wait: false, origin: { kind: 'composer' } })
+      draft.text = '[Image #3]'
+      await clock.advance(DRAFT_POLL_MS)
+      const gallery = await mountGallery($)
+      const settings = await mountSettings($)
+
+      await settings.press({ key: 'setting-abovePrompt' })
+      expect(await gallery.find({ type: 'Text', text: `${PASTE_CACHE}/3.png` })).toBeUndefined()
+      expect(await gallery.find({ type: 'Text', text: `${PASTE_CACHE}/2.png` })).toBeDefined()
+
+      await settings.press({ key: 'setting-sentPastes' })
+      expect(await gallery.find({ type: 'Text', text: `${PASTE_CACHE}/2.png` })).toBeUndefined()
+    })
+  })
+})

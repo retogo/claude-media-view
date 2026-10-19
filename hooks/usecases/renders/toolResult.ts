@@ -1,3 +1,4 @@
+import { toolImageSetting } from '../../domain/settings'
 import { toolOutputImages } from '../../domain/toolOutput'
 import { loadPicture, readPathOf } from '../images'
 import type { Ports } from '../ports'
@@ -26,7 +27,7 @@ export const toolResult = async (
     if (picture === null) {
       return null
     }
-    await ports.rememberSeen({ key, path, label: path ?? tool, shownAtKey: toolUseId, rowId: toolUseId, picture })
+    await ports.rememberSeen({ key, path, label: path ?? tool, shownAtKey: toolUseId, rowId: toolUseId, setting: toolImageSetting(tool), picture })
     return { key: `image-${n}`, picture }
   })
   const shown: Shown[] = (await Promise.all(loading)).filter(isShown)

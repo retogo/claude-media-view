@@ -39,14 +39,15 @@ Each folder names the event its usecases answer; the file names the matcher's va
 | image tag     | `[Image #n]`, by its number `n`                                                                      |
 | draft | The prompt being written, read with `$.prompt.read()` |
 | tile | One picture in the `AbovePrompt` band, labelled with its image tag number |
-| gallery | The media-view `Pane`: every image of the session, opened with `/media-view` |
+| gallery | The media-view `Pane`: every image the chat shows under the show settings that are on, opened with `/media-view` |
 | kept frame | A GIF frame kept by sampling; it shows until the next kept frame |
 | paste cache   | The folder Claude Code writes pasted images to: `<tmp root>/<project>/<session>/images/<n>.<ext>`    |
 | picture       | A decoded image on disk: its size and its frames, each a file source for `Image`                     |
 | frame cache   | `<tmp root>/media-view/<key hash>/`, where pictures are written once                                 |
 | cell box      | The columns and rows of terminal cells a picture is drawn in                                         |
-| seen image    | An image the transcript drew from a tool's result, kept with the row (`requestId`) that drew it and its path (a Read's) or its tool (an MCP tool's) |
+| seen image    | An image the transcript drew from a tool's result, kept with the row (`requestId`) that drew it and its path (a Read's) or its tool (an MCP tool's), and the show setting it was drawn under |
 | shown at      | When an image showed in the chat: its tool call answered, or its prompt was sent from the composer |
 | settings      | Which kinds of picture media-view draws, each on or off; kept in the plugin's store |
+| show setting  | A setting that lets one kind of image be shown, in the chat and in the gallery alike; every setting but GIF animation |
 | blit loop     | A timer swapping a GIF's frames on one keyed `Image` until stopped                                   |
 | terminal deny | A blit refused because the terminal draws the `Image`'s alt here, not because it was not mounted yet |

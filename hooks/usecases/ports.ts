@@ -1,5 +1,6 @@
 import type { Picture } from '../domain/media/frameCache'
 import type { Command, Os } from '../domain/platform'
+import type { ShowSetting } from '../domain/settings'
 
 // Where this session's files are: resolved once per session.
 export type Host = { os: Os; tmpRoot: string; cacheRoot: string }
@@ -11,8 +12,8 @@ export type ReadVerdict = { decision: 'allow' | 'ask' | 'deny'; reason?: string 
 
 // An image the transcript drew, with the row that drew it: `path` is the file it was read from, absent for an
 // image a tool answered with; `label` names it, by its path or its tool; `shownAtKey` is the key its time in the
-// chat is kept under (a tool call's id, a reply row's id), when there is one.
-export type SeenImage = { key: string; path?: string; label: string; shownAtKey?: string; rowId: string; picture: Picture }
+// chat is kept under (a tool call's id, a reply row's id), when there is one; `setting` is the one it was shown under.
+export type SeenImage = { key: string; path?: string; label: string; shownAtKey?: string; rowId: string; setting: ShowSetting; picture: Picture }
 
 // What the usecases need from Claude Code; adapters/engine.ts implements it over `$`.
 export type Ports = {

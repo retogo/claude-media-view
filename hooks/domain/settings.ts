@@ -5,6 +5,12 @@ export type SettingKey = (typeof SETTING_KEYS)[number]
 
 export type Settings = Record<SettingKey, boolean>
 
+// The settings that each let one kind of image be shown, in the chat and in the gallery alike.
+export type ShowSetting = Exclude<SettingKey, 'animateGifs'>
+
+// The setting a tool's images are shown under.
+export const toolImageSetting = (tool: string): ShowSetting => (tool === 'Read' ? 'readImages' : 'toolImages')
+
 export const SETTING_LABELS: Record<SettingKey, string> = {
   abovePrompt: 'Pasted images above the prompt',
   sentPastes: 'Pasted images in sent prompts',

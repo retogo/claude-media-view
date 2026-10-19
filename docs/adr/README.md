@@ -63,3 +63,4 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0023](0023-settings-kept-in-the-store.md) | What media-view draws is the person's to choose, and kept across sessions | Accepted |
 | [0024](0024-superseded-draws-fail-quietly.md) | A draw a newer one superseded fails quietly | Accepted |
 | [0025](0025-gallery-lists-only-kept-pastes.md) | The gallery lists only the pastes in the draft or a sent prompt | Accepted |
+| [0026](0026-gallery-follows-the-chat.md) | The gallery shows what the chat shows, newest first | Accepted |

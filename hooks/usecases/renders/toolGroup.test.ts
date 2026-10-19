@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+import { DEFAULT_SETTINGS } from '../../domain/settings'
 import { fakePorts } from '../ports.fake'
 import { mediaViewPane } from './pane/mediaView'
 import { toolGroup } from './toolGroup'
@@ -45,7 +46,7 @@ describe('toolGroup', () => {
     })
     const { ports: newSession } = fakePorts({}, { sessionId: async () => 'session-new' })
 
-    expect((await mediaViewPane(newSession, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [] })).map(entry => entry.path)).toEqual([])
+    expect((await mediaViewPane(newSession, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })).map(entry => entry.path)).toEqual([])
   })
 
   test('draws only the tools it is told to show', async () => {

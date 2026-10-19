@@ -1,3 +1,4 @@
+import { toolImageSetting } from '../../domain/settings'
 import { toolOutputImages } from '../../domain/toolOutput'
 import { loadPicture, readPathOf } from '../images'
 import type { Ports } from '../ports'
@@ -32,7 +33,7 @@ export const toolGroup = async (
     }
     const inputPath = (call.input as { file_path?: unknown } | undefined)?.file_path
     const path = call.tool !== 'Read' ? undefined : typeof inputPath === 'string' ? inputPath : readPathOf(key)
-    await ports.rememberSeen({ key, path, label: path ?? call.tool, shownAtKey: call.tool_use_id, rowId: requestId, picture })
+    await ports.rememberSeen({ key, path, label: path ?? call.tool, shownAtKey: call.tool_use_id, rowId: requestId, setting: toolImageSetting(call.tool), picture })
     return { key: `image-${i}-${n}`, picture }
   })
   const shown: Shown[] = (await Promise.all(loading)).filter(isShown)

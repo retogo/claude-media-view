@@ -1,5 +1,6 @@
 import { cellBox, type CellBox } from '../../../domain/layout'
 import { mediaTypeOf } from '../../../domain/media/decode'
+import type { Settings } from '../../../domain/settings'
 import { formatShownAt, pasteShownAtKey } from '../../../domain/shownAt'
 import type { Picture } from '../../../domain/media/frameCache'
 import { joinPath } from '../../../domain/platform'
@@ -46,8 +47,8 @@ const listPasteCache = async (ports: Ports, sessionId: string) => {
 }
 
 // The paste cache keeps every paste, also one taken out of the draft before it was sent: only the pastes in the
-// draft now, or in a prompt sent from the composer, are the person's (ADR 0025).
-const pastedImages = async (ports: Ports, sessionId: string, isPastePresent: (n: number) => boolean) => {
+// draft now, or in a prompt sent from the composer, are the person's (ADR 0025), and of those the ones `isShown`.
+const pastedImages = async (ports: Ports, sessionId: string, isShown: (n: number) => boolean) => {
   const pasteCache = await listPasteCache(ports, sessionId)
   if (pasteCache === undefined) {
     return []
@@ -56,7 +57,7 @@ const pastedImages = async (ports: Ports, sessionId: string, isPastePresent: (n:
   const numbered = files
     .filter(file => file.kind === 'file' && mediaTypeOf(file.name) !== undefined)
     .map(file => ({ n: Number.parseInt(file.name, 10), path: joinPath(host.os, images, file.name) }))
-    .filter(({ n }) => Number.isInteger(n) && isPastePresent(n))
+    .filter(({ n }) => Number.isInteger(n) && isShown(n))
     .sort((a, b) => b.n - a.n)
   return Promise.all(
     numbered.map(async ({ n, path }) => ({
@@ -70,13 +71,16 @@ const pastedImages = async (ports: Ports, sessionId: string, isPastePresent: (n:
   )
 }
 
-// An image a tool answered with has no file of its own; its picture's first frame in the frame cache stands in.
-const toolImages = async (ports: Ports) =>
+// The images rows drew under a setting that is on. An image a tool answered with has no file of its own; its
+// picture's first frame in the frame cache stands in.
+const toolImages = async (ports: Ports, settings: Settings) =>
   (await ports.seenImages())
+    .filter(({ setting }) => settings[setting])
     .reverse()
     .map(({ key, shownAtKey, label, path, picture, rowId }) => ({ id: `read-${key}`, timeKey: shownAtKey, label, path: path ?? picture.frames[0]!.source.file, picture, rowId }))
 
-// Every image of the session: pasted ones newest first, then the ones tools' results drew, newest first.
+// Every image the chat shows under the settings that are on (ADR 0026): the draft's pastes first, as they are
+// about to show, then newest shown first, and those with no time last, pastes before tools' images, each newest first.
 // `shownAt` holds when each image showed in the chat, by tool call id or by `pasteShownAtKey`; `draftNumbers`
 // are the draft's image tags.
 export const mediaViewPane = async (
@@ -86,12 +90,21 @@ export const mediaViewPane = async (
     scroll,
     shownAt,
     draftNumbers,
-  }: { bodyColumns: number; scroll: PaneScroll; shownAt: Readonly<Record<string, number>>; draftNumbers: readonly number[] },
+    settings,
+  }: { bodyColumns: number; scroll: PaneScroll; shownAt: Readonly<Record<string, number>>; draftNumbers: readonly number[]; settings: Settings },
 ): Promise<MediaViewEntry[]> => {
   const sessionId = await ports.sessionId()
   const columns = bodyColumns - 2 * PANE_PADDING.x
-  const isPastePresent = (n: number) => draftNumbers.includes(n) || pasteShownAtKey(n) in shownAt
-  const shown = [...(await pastedImages(ports, sessionId, isPastePresent)), ...(await toolImages(ports))].flatMap(entry =>
+  const isDrafted = (n: number) => settings.abovePrompt && draftNumbers.includes(n)
+  const isSent = (n: number) => settings.sentPastes && pasteShownAtKey(n) in shownAt
+  const pastes = await pastedImages(ports, sessionId, n => isDrafted(n) || isSent(n))
+  const leading = new Set(draftNumbers.filter(isDrafted).map(pasteShownAtKey))
+  const rank = (timeKey: string | undefined) =>
+    timeKey === undefined ? Number.NEGATIVE_INFINITY : leading.has(timeKey) ? Number.POSITIVE_INFINITY : (shownAt[timeKey] ?? Number.NEGATIVE_INFINITY)
+  const ordered = [...pastes, ...(await toolImages(ports, settings))].sort((a, b) =>
+    rank(a.timeKey) === rank(b.timeKey) ? 0 : rank(a.timeKey) > rank(b.timeKey) ? -1 : 1,
+  )
+  const shown = ordered.flatMap(entry =>
     entry.picture === null
       ? []
       : [{ ...entry, picture: entry.picture, box: cellBox(entry.picture, { maxColumns: Math.min(MAX_COLUMNS, columns), maxRows: MAX_ROWS }) }],

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+import { DEFAULT_SETTINGS } from '../../../domain/settings'
 import { pasteShownAtKey } from '../../../domain/shownAt'
 import { rememberReadPath } from '../../images'
 import { fakePorts } from '../../ports.fake'
@@ -28,7 +29,7 @@ describe('mediaViewPane', () => {
       viewportColumns: 80,
     })
 
-    expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [] })).map(entry => entry.path)).toEqual(['/work/chart.png'])
+    expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })).map(entry => entry.path)).toEqual(['/work/chart.png'])
   })
 
   test('lists an image a standalone ToolResult row drew, by the path its Read call read', async () => {
@@ -42,7 +43,7 @@ describe('mediaViewPane', () => {
       viewportColumns: 80,
     })
 
-    expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [] })).map(entry => [entry.path, entry.rowId])).toEqual([['/work/standalone.png', 'toolu_standalone']])
+    expect((await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })).map(entry => [entry.path, entry.rowId])).toEqual([['/work/standalone.png', 'toolu_standalone']])
   })
 
   describe('images MCP tools answered with', () => {
@@ -53,7 +54,7 @@ describe('mediaViewPane', () => {
     ]
     const cachedFile = expect.stringMatching(/^\/tmp\/claude-501\/media-view\/[0-9a-f]{16}\/0\.png$/)
     const listed = async (ports: Parameters<typeof mediaViewPane>[0]) =>
-      (await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [] })).map(({ label, path, rowId }) => ({ label, path, rowId }))
+      (await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })).map(({ label, path, rowId }) => ({ label, path, rowId }))
 
     test('lists one a ToolGroup row drew, by its tool, with its cached file as its path', async () => {
       const { ports } = fakePorts({}, { sessionId: async () => 'session-shot-group' })
@@ -87,7 +88,7 @@ describe('mediaViewPane', () => {
       })
       const shownAt = { toolu_timed: new Date(2026, 9, 19, 15, 22).getTime() }
 
-      const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt, draftNumbers: [] })
+      const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt, draftNumbers: [], settings: DEFAULT_SETTINGS })
 
       expect(entry?.heading).toBe('2026-10-19 15:22  mcp__claude-in-chrome__computer')
     })
@@ -102,7 +103,7 @@ describe('mediaViewPane', () => {
         viewportColumns: 80,
       })
 
-      const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [] })
+      const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })
 
       expect(entry?.heading).toBe('/work/untimed.png')
     })
@@ -110,13 +111,14 @@ describe('mediaViewPane', () => {
 
   // A hot reload clears the module's own variables; the ports keep what the gallery saw.
   describe('after the module was loaded again', () => {
-    const PANE_ARGS = { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [] }
+    const PANE_ARGS = { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS }
     const kept = {
       key: 'toolu_kept',
       path: '/work/kept.png',
       label: '/work/kept.png',
       shownAtKey: 'toolu_kept',
       rowId: 'group-kept',
+      setting: 'readImages' as const,
       picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] },
     }
 
@@ -144,10 +146,10 @@ describe('mediaViewPane', () => {
   })
 
   test('lays entries out below the pane’s top padding and within its side padding', async () => {
-    const { ports } = fakePorts({}, { seenImages: async () => [{ key: 'toolu_pad', label: 'x'.repeat(79), rowId: 'group-pad', picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] } }] })
+    const { ports } = fakePorts({}, { seenImages: async () => [{ key: 'toolu_pad', label: 'x'.repeat(79), rowId: 'group-pad', setting: 'toolImages', picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] } }] })
 
-    const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 1 }, shownAt: {}, draftNumbers: [] })
-    const [below] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 3, bodyRows: 1 }, shownAt: {}, draftNumbers: [] })
+    const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 1 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })
+    const [below] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 3, bodyRows: 1 }, shownAt: {}, draftNumbers: [], settings: DEFAULT_SETTINGS })
 
     // The first row is padding; a 79-column heading wraps in the 78 columns inside the side padding, so the
     // entry's button row is the pane's fourth.

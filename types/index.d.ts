@@ -4,6 +4,7 @@ export type MediaViewSeenImage = {
   label: string
   shownAtKey?: string
   rowId: string
+  setting: 'abovePrompt' | 'sentPastes' | 'readImages' | 'toolImages' | 'replyPaths'
   picture: { width: number; height: number; frames: { source: { file: string; format: 'png' }; delayMs: number }[] }
 }
 
