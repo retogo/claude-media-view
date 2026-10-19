@@ -31,6 +31,7 @@ export const fakePorts = (files: Record<string, Uint8Array> = {}, overrides: Par
       }
     },
     imageTagRowOf: async n => imageTagRows.get(n),
+    rememberShownAt: async () => undefined,
     listDirectory: async () => [],
     exists: async () => false,
     run: async command => {

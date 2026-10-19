@@ -10,6 +10,7 @@ The words this project uses, and where they come from. Claude Code's own names a
 | `ToolGroup`   | A run of tool calls folded into one line ("Read 2 files"); `ui.render` component              |
 | `ToolResult`  | The result block under a standalone tool row; `ui.render` component                           |
 | `UserMessage` | A user-role transcript row: a sent prompt; `ui.render` component                              |
+| `AssistantMessage` | A reply's text row; `ui.render` component |
 | `Pane`        | A pane the mod opens; `ui.render` component, its id the `requestId`                           |
 | `Image`       | The terminal element that draws a picture through the kitty graphics protocol                 |
 | `[Image #n]`  | The tag Claude Code puts in a prompt for the n-th pasted image                                |
@@ -46,5 +47,6 @@ Each folder names the event its usecases answer; the file names the matcher's va
 | cell box      | The columns and rows of terminal cells a picture is drawn in                                         |
 | seen image    | An image the transcript drew from a tool's result, kept with the row (`requestId`) that drew it and its path (a Read's) or its tool (an MCP tool's) |
 | shown at      | When an image showed in the chat: its tool call answered, or its prompt was sent from the composer |
+| settings      | Which kinds of picture media-view draws, each on or off; kept in the plugin's store |
 | blit loop     | A timer swapping a GIF's frames on one keyed `Image` until stopped                                   |
 | terminal deny | A blit refused because the terminal draws the `Image`'s alt here, not because it was not mounted yet |

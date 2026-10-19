@@ -1,9 +1,11 @@
 import type { EngineInterface, RenderElement, RenderInputOf } from 'claude-code'
 
-import { TILE_GAP, type AbovePromptTiles } from '../usecases/renders/abovePrompt'
-import { ENTRY_GAP, type MediaViewEntry } from '../usecases/renders/pane/mediaView'
-import { PICTURE_GAP, type PictureRows } from '../usecases/renders/pictureRows'
 import type { CellBox } from '../domain/layout'
+import type { SettingKey } from '../domain/settings'
+import { TILE_GAP, type AbovePromptTiles } from '../usecases/renders/abovePrompt'
+import { ENTRY_GAP, PANE_PADDING, type MediaViewEntry } from '../usecases/renders/pane/mediaView'
+import type { SettingEntry } from '../usecases/renders/pane/settings'
+import { PICTURE_GAP, type PictureRows } from '../usecases/renders/pictureRows'
 import { animate, reportDeny, stopAnimation, stopAnimations, stopAnimationsExcept, type Site } from './animator'
 
 const BUTTON_GAP = 1
@@ -11,7 +13,7 @@ const BUTTON_GAP = 1
 // An Image of another size is another Image: the terminal keeps an unchanged source at the size it was first sent (ADR 0017).
 const sizedKey = (key: string, { columns, rows }: CellBox) => `${key}@${columns}x${rows}`
 
-type TranscriptRow = RenderInputOf<'ToolGroup' | 'ToolResult' | 'UserMessage', 'terminal'>
+type TranscriptRow = RenderInputOf<'ToolGroup' | 'ToolResult' | 'UserMessage' | 'AssistantMessage', 'terminal'>
 
 // The engine's own row, then the pictures under it; GIFs move only while the row is on screen (ADR 0008).
 export function drawPictureRows(
@@ -74,7 +76,11 @@ export type MediaViewButtons = {
 export function drawMediaViewPane($: EngineInterface, e: RenderInputOf<'Pane', 'terminal'>, entries: MediaViewEntry[], buttons: MediaViewButtons) {
   const { Box, Button, Image, Text } = $.ui.resolve(e)
   if (entries.length === 0) {
-    return <Text dimColor>No images in this session yet.</Text>
+    return (
+      <Box paddingTop={PANE_PADDING.top} paddingX={PANE_PADDING.x}>
+        <Text dimColor>No images in this session yet.</Text>
+      </Box>
+    )
   }
   // Only entries inside the pane's scroll window move (ADR 0008).
   const keys = entries.map(({ id, box }) => sizedKey(id, box))
@@ -86,7 +92,7 @@ export function drawMediaViewPane($: EngineInterface, e: RenderInputOf<'Pane', '
   )
 
   return (
-    <Box flexDirection="column" gap={ENTRY_GAP}>
+    <Box flexDirection="column" gap={ENTRY_GAP} paddingTop={PANE_PADDING.top} paddingX={PANE_PADDING.x}>
       {entries.map(({ id, label, heading, path, picture, box, rowId }) => (
         <Box flexDirection="column">
           <Text>{heading}</Text>
@@ -97,6 +103,19 @@ export function drawMediaViewPane($: EngineInterface, e: RenderInputOf<'Pane', '
           </Box>
           <Image key={sizedKey(id, box)} source={picture.frames[0]!.source} columns={box.columns} rows={box.rows} alt={label} />
         </Box>
+      ))}
+    </Box>
+  )
+}
+
+// What media-view draws, each a button that turns it on or off.
+export function drawSettingsPane($: EngineInterface, e: RenderInputOf<'Pane', 'terminal'>, entries: SettingEntry[], toggle: (key: SettingKey) => unknown) {
+  const { Box, Button, Text } = $.ui.resolve(e)
+  return (
+    <Box flexDirection="column" paddingTop={PANE_PADDING.top} paddingX={PANE_PADDING.x}>
+      <Text dimColor>What media-view draws, kept for every session:</Text>
+      {entries.map(({ key, label, isOn }) => (
+        <Button key={`setting-${key}`} label={`[${isOn ? 'x' : ' '}] ${label}`} onPress={() => toggle(key)} />
       ))}
     </Box>
   )

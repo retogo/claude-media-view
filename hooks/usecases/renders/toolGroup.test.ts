@@ -47,4 +47,23 @@ describe('toolGroup', () => {
 
     expect((await mediaViewPane(newSession, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 40 }, shownAt: {} })).map(entry => entry.path)).toEqual([])
   })
+
+  test('draws only the tools it is told to show', async () => {
+    const { ports } = fakePorts()
+    const output = { type: 'image', file: { base64: PNG_BASE64, type: 'image/png', originalSize: 1 } }
+    const shot = [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_BASE64 } }]
+
+    const rows = await toolGroup(ports, {
+      requestId: 'group-shows',
+      calls: [
+        { tool_use_id: 'toolu_read_hidden', tool: 'Read', input: { file_path: '/work/a.png' }, output },
+        { tool_use_id: 'toolu_shot_shown', tool: 'mcp__browser__screenshot', input: {}, output: shot },
+      ],
+      viewportColumns: 80,
+      showsTool: tool => tool !== 'Read',
+    })
+
+    expect(rows?.flat().map(({ key }) => key)).toEqual(['image-1-0'])
+  })
 })
+

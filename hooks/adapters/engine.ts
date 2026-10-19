@@ -15,6 +15,7 @@ const CHUNK_BYTES = 32 * READ_BLOCK_BYTES
 // The gallery's records live in the session's state, which a hot reload of the module leaves (ADR 0021).
 const seenImages = atom({ plugin: 'media-view', key: 'seenImages' } as const, [])
 const imageTagRows = atom({ plugin: 'media-view', key: 'imageTagRows' } as const, {})
+const shownAt = atom({ plugin: 'media-view', key: 'shownAt' } as const, {})
 
 let host: Promise<Host> | undefined
 
@@ -91,6 +92,12 @@ export function enginePorts($: EngineInterface): Ports {
       }
     },
     imageTagRowOf: async n => (await read($, imageTagRows))[n],
+    rememberShownAt: async key => {
+      if ((await read($, shownAt))[key] === undefined) {
+        const at = await $.clock.now()
+        afterDrawing($, () => update($, shownAt, times => (times[key] === undefined ? { ...times, [key]: at } : times)))
+      }
+    },
     listDirectory: async path => (await $.fs.list(path)).map(({ name, kind }) => ({ name, kind })),
     exists: path => $.fs.exists(path),
     run: async ({ argv, init }) => {

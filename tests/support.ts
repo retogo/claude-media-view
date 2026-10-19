@@ -15,6 +15,7 @@ export const GIF_TWO_FRAMES =
 export const onMac = (on: On) => {
   const runs: string[][] = []
   mock.env(on, {})
+  mock.store(on)
   on('fs.stat', () => ({ value: { kind: 'file', size: 1024, mtimeMs: 0, isLink: false } }))
   on('session.id', () => ({ value: 'session-1' }))
   on('process.run', (_$, e) => {
@@ -87,8 +88,14 @@ export const PANE_PROPS = {
 export const runCommand = ($: Engine, args: string) =>
   $.command.run({ command: 'media-view', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
-// A macOS session `session-1` with 2.png pasted; returns the argv of every process run.
-export const startSession = async ($: Engine, on: On, pasted = PNG_1X1) => {
+// A macOS session `session-1` with 2.png and 3.png pasted (each `pasted`, base64), the plugin's store holding
+// `stored`, and `files` there to read as the same bytes besides; returns the argv of every process run and the
+// store, to read what was kept.
+export const startSession = async (
+  $: Engine,
+  on: On,
+  { pasted = PNG_1X1, stored = {}, files = [] }: { pasted?: string; stored?: Record<string, unknown>; files?: string[] } = {},
+) => {
   const runs: string[][] = []
   const copied: string[] = []
   const blits: UiBlitArgs[] = []
@@ -114,11 +121,16 @@ export const startSession = async ($: Engine, on: On, pasted = PNG_1X1) => {
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('fs.list', (_$, e) => ({ value: posixPath(e.path) === '/tmp/claude-501' ? [entry('-Users-me', 'dir')] : posixPath(e.path) === PASTE_CACHE ? [entry('2.png', 'file'), entry('3.png', 'file')] : [] }))
-  on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === PASTE_CACHE }))
+  on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === PASTE_CACHE || files.includes(posixPath(e.path)) }))
   on('fs.read', () => ({ value: { base64: pasted } }))
+  const store = new Map(Object.entries(stored))
+  on('store.get', (_$, e) => ({ value: store.get(e.key) }))
+  on('store.set', (_$, e) => (store.set(e.key, e.value), { value: undefined }))
+  on('store.delete', (_$, e) => (store.delete(e.key), { value: undefined }))
+  on('store.keys', () => ({ value: [...store.keys()] }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
-  return { runs, copied, blits, clock }
+  return { runs, copied, blits, clock, store }
 }
 

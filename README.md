@@ -5,7 +5,7 @@ A Claude Code mod that shows images and GIFs inline in the terminal — and lets
 ## What it does
 
 - **Composer preview**: pictures of pasted images above the prompt while you write, labelled `#n` like their `[Image #n]` tags.
-- **Transcript inline**: pictures under the rows that carry them — images Claude reads, images MCP tools answer with (such as a browser's screenshots), and images you send. GIFs play, and pause while scrolled out of view.
+- **Transcript inline**: pictures under the rows that carry them — images Claude reads, images MCP tools answer with (such as a browser's screenshots), image files Claude names in its replies, and images you send. GIFs play, and pause while scrolled out of view.
 - **Frames for Claude**: the `frames` tool hands Claude every frame of a GIF (sampled to at most 12 by default), so it sees the motion and not only the first frame.
 - **Gallery**: `/media-view` opens a pane with every image of the session and when it showed in the chat, with buttons to copy its path or open it.
 - **PNG, GIF and JPEG on macOS, Linux and Windows** with built-in decoders: nothing to install, no ffmpeg.
@@ -28,11 +28,14 @@ claude plugin install media-view --marketplace retogo/claude-media-view
 
 ## Use
 
-| Command               | Does                                      |
-| --------------------- | ----------------------------------------- |
-| `/media-view`         | Opens the gallery pane                    |
-| `/media-view still`   | Shows transcript GIFs as still pictures   |
-| `/media-view animate` | Plays transcript GIFs again (the default) |
+| Command                | Does                                                    |
+| ---------------------- | ------------------------------------------------------- |
+| `/media-view`          | Opens the gallery, with the settings as a tab beside it |
+| `/media-view settings` | Shows the settings tab: each kind of picture on or off  |
+| `/media-view still`    | Shows transcript GIFs as still pictures                 |
+| `/media-view animate`  | Plays transcript GIFs again (the default)               |
+
+Every kind of picture is on by default; the settings are kept for later sessions. An image file named in a reply is drawn only where the Read tool may read it without asking.
 
 Ask Claude to look at a GIF ("what happens in demo.gif?") and it can call the `frames` tool. It reads only what the Read tool may: your Read permission rules apply, and a path Read would ask about is put to you as a Read.
 

@@ -59,3 +59,5 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0019](0019-scale-by-area-average.md) | Pictures are scaled by the average of the area each pixel covers | Accepted |
 | [0020](0020-gallery-times-from-calls-and-prompts.md) | The gallery's times are kept when a call answers or a prompt is sent | Accepted |
 | [0021](0021-gallery-records-in-session-state.md) | The gallery's records live in the session's state | Accepted |
+| [0022](0022-image-files-named-in-replies.md) | Image files named in replies are drawn when Read may read them | Accepted |
+| [0023](0023-settings-kept-in-the-store.md) | What media-view draws is the person's to choose, and kept across sessions | Accepted |

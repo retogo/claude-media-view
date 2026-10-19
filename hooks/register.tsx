@@ -3,13 +3,16 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import { stopAnimations } from './adapters/animator'
 import { enginePorts } from './adapters/engine'
-import { drawAbovePrompt, drawMediaViewPane, drawPictureRows } from './adapters/views'
+import { drawAbovePrompt, drawMediaViewPane, drawPictureRows, drawSettingsPane } from './adapters/views'
 import { openCommand } from './domain/platform'
+import { DEFAULT_SETTINGS, settingsFrom, toggled, type Settings } from './domain/settings'
 import { mediaViewClosed } from './usecases/closes/mediaView'
 import { mediaView } from './usecases/commandRuns/mediaView'
 import { rememberReadPath } from './usecases/images'
 import { abovePrompt, watchDraft } from './usecases/renders/abovePrompt'
+import { assistantMessage } from './usecases/renders/assistantMessage'
 import { MEDIA_VIEW_PANE, mediaViewPane } from './usecases/renders/pane/mediaView'
+import { SETTINGS_PANE, settingsPane } from './usecases/renders/pane/settings'
 import { toolGroup } from './usecases/renders/toolGroup'
 import { toolResult } from './usecases/renders/toolResult'
 import { userMessage } from './usecases/renders/userMessage'
@@ -19,10 +22,12 @@ import { anyTool } from './usecases/toolCalls/anyTool'
 import { frames } from './usecases/toolCalls/frames'
 import type { Ports } from './usecases/ports'
 
-const TRANSCRIPT_SITES = ['ToolGroup', 'ToolResult', 'UserMessage'] as const
+const TRANSCRIPT_SITES = ['ToolGroup', 'ToolResult', 'UserMessage', 'AssistantMessage'] as const
+// The key the plugin's store keeps the settings under, for every session.
+const SETTINGS_STORE_KEY = 'settings'
 
 // State refs live where they are read and written (ADR 0014); types/index.d.ts lists them.
-const isTranscriptAnimated = atom({ plugin: 'media-view', key: 'isTranscriptAnimated' } as const, true)
+const settings = atom({ plugin: 'media-view', key: 'settings' } as const, DEFAULT_SETTINGS)
 const draftImageNumbers = atom({ plugin: 'media-view', key: 'draftImageNumbers' } as const, [])
 const mediaViewScrollOffset = atom({ plugin: 'media-view', key: 'mediaViewScrollOffset' } as const, 0)
 const shownAt = atom({ plugin: 'media-view', key: 'shownAt' } as const, {})
@@ -33,6 +38,15 @@ const imageTagRows = atom({ plugin: 'media-view', key: 'imageTagRows' } as const
 // which a newer draw of the same row would otherwise cut short (ADR 0007). Without a session (tests that only
 // draw), a hook's own $ serves.
 let sessionPorts: Ports | undefined
+
+// The settings, for this session and kept in the store for the next ones (ADR 0023); GIFs stop at once when turned off.
+async function saveSettings($: EngineInterface, next: Settings) {
+  await update($, settings, () => next)
+  await $.store.set(SETTINGS_STORE_KEY, next)
+  if (!next.animateGifs) {
+    TRANSCRIPT_SITES.forEach(site => stopAnimations(site))
+  }
+}
 
 // Keeps when an image first showed in the chat; a later sight of it changes nothing.
 async function recordShown($: EngineInterface, key: string) {
@@ -46,6 +60,10 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
     sessionPorts = enginePorts($)
+    const stored = settingsFrom(await $.store.get(SETTINGS_STORE_KEY))
+    if (JSON.stringify(stored) !== JSON.stringify(await read($, settings))) {
+      await update($, settings, () => stored)
+    }
     await sessionStarts({
       watchDraft: () =>
         watchDraft({
@@ -75,7 +93,7 @@ export const register: Register = on => {
       return next(e)
     }
     const numbers = await read($, draftImageNumbers)
-    const view = e.props.hasSurvey
+    const view = e.props.hasSurvey || !(await read($, settings)).abovePrompt
       ? null
       : await abovePrompt(portsFor($), { numbers, bodyColumns: e.props.bodyColumns, maxRows: e.props.maxRows })
     if (view === null) {
@@ -89,37 +107,60 @@ export const register: Register = on => {
     if (e.surface !== 'terminal') {
       return next(e)
     }
-    const rows = await toolGroup(portsFor($), { requestId: e.requestId, calls: e.props.calls, viewportColumns: e.viewport?.columns })
+    const shows = await read($, settings)
+    const rows = await toolGroup(portsFor($), {
+      requestId: e.requestId,
+      calls: e.props.calls,
+      viewportColumns: e.viewport?.columns,
+      showsTool: tool => (tool === 'Read' ? shows.readImages : shows.toolImages),
+    })
     const own = await next(e)
-    return rows === null ? own : drawPictureRows($, e, { site: 'ToolGroup', own, rows, isAnimated: await read($, isTranscriptAnimated) })
+    return rows === null ? own : drawPictureRows($, e, { site: 'ToolGroup', own, rows, isAnimated: shows.animateGifs })
   })
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
     if (e.surface !== 'terminal') {
       return next(e)
     }
+    const shows = await read($, settings)
     const rows = await toolResult(portsFor($), {
       toolUseId: e.props.tool_use_id,
       tool: e.props.tool,
       output: e.props.output,
       viewportColumns: e.viewport?.columns,
+      showsTool: tool => (tool === 'Read' ? shows.readImages : shows.toolImages),
     })
     const own = await next(e)
-    return rows === null ? own : drawPictureRows($, e, { site: 'ToolResult', own, rows, isAnimated: await read($, isTranscriptAnimated) })
+    return rows === null ? own : drawPictureRows($, e, { site: 'ToolResult', own, rows, isAnimated: shows.animateGifs })
   })
 
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal') {
       return next(e)
     }
-    const rows = await userMessage(portsFor($), {
-      requestId: e.requestId,
-      text: e.props.text,
-      isFromSomeoneElse: e.props.from !== undefined,
-      viewportColumns: e.viewport?.columns,
-    })
+    const shows = await read($, settings)
+    const rows = shows.sentPastes
+      ? await userMessage(portsFor($), {
+          requestId: e.requestId,
+          text: e.props.text,
+          isFromSomeoneElse: e.props.from !== undefined,
+          viewportColumns: e.viewport?.columns,
+        })
+      : null
     const own = await next(e)
-    return rows === null ? own : drawPictureRows($, e, { site: 'UserMessage', own, rows, isAnimated: await read($, isTranscriptAnimated) })
+    return rows === null ? own : drawPictureRows($, e, { site: 'UserMessage', own, rows, isAnimated: shows.animateGifs })
+  })
+
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    if (e.surface !== 'terminal') {
+      return next(e)
+    }
+    const shows = await read($, settings)
+    const rows = shows.replyPaths
+      ? await assistantMessage(portsFor($), { requestId: e.requestId, text: e.props.text, viewportColumns: e.viewport?.columns })
+      : null
+    const own = await next(e)
+    return rows === null ? own : drawPictureRows($, e, { site: 'AssistantMessage', own, rows, isAnimated: shows.animateGifs })
   })
 
   on('ui.render', { component: 'Pane', requestId: MEDIA_VIEW_PANE }, async ($, e) => {
@@ -138,15 +179,28 @@ export const register: Register = on => {
     })
   })
 
+  on('ui.render', { component: 'Pane', requestId: SETTINGS_PANE }, async ($, e) => {
+    const current = await read($, settings)
+    if (e.surface !== 'terminal') {
+      const { Text } = $.ui.resolve(e)
+      return <Text>media-view draws pictures in the terminal.</Text>
+    }
+    return drawSettingsPane($, e, settingsPane(current), key => saveSettings($, toggled(current, key)))
+  })
+
   on('ui.scroll', { requestId: MEDIA_VIEW_PANE }, async ($, e, next) => {
     const scrolled = await next(e)
     await update($, mediaViewScrollOffset, () => e.offset)
     return scrolled
   })
 
-  on('ui.close', ($, e, next) => {
-    mediaViewClosed(e.id, { stopPaneAnimations: () => stopAnimations('Pane') })
-    return next(e)
+  on('ui.close', async ($, e, next) => {
+    const closed = await next(e)
+    await mediaViewClosed(
+      { paneId: e.id, closedBy: e.origin.kind },
+      { stopPaneAnimations: () => stopAnimations('Pane'), closePane: id => $.ui.close({ id }) },
+    )
+    return closed
   })
 
   on('command.run', { command: 'media-view' }, async ($, e) => ({
@@ -155,12 +209,14 @@ export const register: Register = on => {
         openPane: async () => {
           await $.ui.open({ id: MEDIA_VIEW_PANE, title: 'Media' })
         },
-        setTranscriptAnimated: async isAnimated => {
-          await update($, isTranscriptAnimated, () => isAnimated)
-          if (!isAnimated) {
-            TRANSCRIPT_SITES.forEach(site => stopAnimations(site))
-          }
+        openSettings: async () => {
+          await $.ui.open({ id: SETTINGS_PANE, title: 'Media settings' })
         },
+        // Opening an open pane only retitles it; giving it the keys brings it to the front.
+        showPane: async () => {
+          await $.ui.open({ id: MEDIA_VIEW_PANE, title: 'Media', focus: true })
+        },
+        setTranscriptAnimated: async isAnimated => saveSettings($, { ...(await read($, settings)), animateGifs: isAnimated }),
       },
       e.args,
     ),

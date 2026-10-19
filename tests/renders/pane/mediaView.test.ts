@@ -91,7 +91,7 @@ describe('/media-view', () => {
   })
 
   test('animates only the GIFs inside the pane’s scroll window', async ($, on) => {
-    const { blits, clock } = await startSession($, on, GIF_TWO_FRAMES)
+    const { blits, clock } = await startSession($, on, { pasted: GIF_TWO_FRAMES })
     await runCommand($, '')
 
     // Each entry is its path, its buttons and a one-row picture: three rows show only the newest paste.

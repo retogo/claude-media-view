@@ -114,7 +114,7 @@ describe('mediaViewPane', () => {
       key: 'toolu_kept',
       path: '/work/kept.png',
       label: '/work/kept.png',
-      callId: 'toolu_kept',
+      shownAtKey: 'toolu_kept',
       rowId: 'group-kept',
       picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] },
     }
@@ -138,6 +138,17 @@ describe('mediaViewPane', () => {
 
       expect((await mediaViewPane(ports, PANE_ARGS)).map(({ id, rowId }) => ({ id, rowId }))).toEqual([{ id: 'paste-3', rowId: 'message-3' }])
     })
+  })
+
+  test('lays entries out below the pane’s top padding and within its side padding', async () => {
+    const { ports } = fakePorts({}, { seenImages: async () => [{ key: 'toolu_pad', label: 'x'.repeat(79), rowId: 'group-pad', picture: { width: 1, height: 1, frames: [{ source: { file: '/tmp/claude-501/media-view/0123456789abcdef/0.png', format: 'png' as const }, delayMs: 0 }] } }] })
+
+    const [entry] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 0, bodyRows: 1 }, shownAt: {} })
+    const [below] = await mediaViewPane(ports, { bodyColumns: 80, scroll: { offset: 3, bodyRows: 1 }, shownAt: {} })
+
+    // The first row is padding; a 79-column heading wraps in the 78 columns inside the side padding, so the
+    // entry's button row is the pane's fourth.
+    expect([entry?.isVisible, below?.isVisible]).toEqual([false, true])
   })
 })
 

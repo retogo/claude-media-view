@@ -9,10 +9,10 @@ export type FileEntry = { name: string; kind: 'file' | 'dir' | 'other' }
 // Read's permission verdict on a path, as `tool.check` answers it.
 export type ReadVerdict = { decision: 'allow' | 'ask' | 'deny'; reason?: string }
 
-// An image the transcript drew from a tool's result, with the row that drew it: `path` is the file a Read read,
-// absent for an image a tool answered with; `label` names it, by its path or its tool; `callId` is the tool call
-// that answered with it, when the row says.
-export type SeenImage = { key: string; path?: string; label: string; callId?: string; rowId: string; picture: Picture }
+// An image the transcript drew, with the row that drew it: `path` is the file it was read from, absent for an
+// image a tool answered with; `label` names it, by its path or its tool; `shownAtKey` is the key its time in the
+// chat is kept under (a tool call's id, a reply row's id), when there is one.
+export type SeenImage = { key: string; path?: string; label: string; shownAtKey?: string; rowId: string; picture: Picture }
 
 // What the usecases need from Claude Code; adapters/engine.ts implements it over `$`.
 export type Ports = {
@@ -33,6 +33,8 @@ export type Ports = {
   seenImages: () => Promise<SeenImage[]>
   rememberImageTagRow: (n: number, rowId: string) => Promise<void>
   imageTagRowOf: (n: number) => Promise<string | undefined>
+  // When an image first showed in the chat, now, for one only a render sees (ADR 0020).
+  rememberShownAt: (key: string) => Promise<void>
   // Asks for another draw, now or after `afterMs`.
   requestRedraw: (afterMs?: number) => void
 }

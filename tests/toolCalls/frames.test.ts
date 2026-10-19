@@ -19,6 +19,7 @@ const startWith = async ($: Engine, on: On, files: Record<string, string>, readD
   on('tool.register', (_$, e) => ({ value: { tool: `mcp__media-view__${e.name}` } }))
   on('fs.read', (_$, e) => (files[posixPath(e.path)] === undefined ? { deny: `ENOENT: ${e.path}` } : { value: { base64: files[posixPath(e.path)]! } }))
   on('tool.check', { tool: 'Read' }, (_$, e) => readDecision((e.input as { file_path: string }).file_path))
+  mock.store(on)
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
 }
 
@@ -90,6 +91,7 @@ describe('frames tool on files of 4 MiB and more', () => {
       const stdout = e.argv[0] === 'uname' ? 'Darwin\n' : e.argv[0] === 'id' ? '501\n' : file.subarray(offset, offset + length).toBase64()
       return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     })
+    mock.store(on)
     await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
 
     const called = await $.tool.call({ tool: TOOL, path: '/work/padded.png' })

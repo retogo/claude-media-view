@@ -39,6 +39,7 @@ const startComposing = async ($: Engine, on: On, draft: { text: string }, pasted
   on('fs.exists', (_$, e) => ({ value: posixPath(e.path) === '/tmp/claude-501/-Users-me/session-1/images' }))
   on('fs.read', () => ({ value: { base64: pasted } }))
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+  mock.store(on)
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
   return clock
 }

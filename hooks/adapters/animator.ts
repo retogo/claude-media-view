@@ -7,7 +7,7 @@ import type { Frame } from '../domain/media/frameCache'
 const RETRIES_BEFORE_MOUNT = 20
 const RETRY_MS = 100
 
-export type Site = 'AbovePrompt' | 'ToolGroup' | 'ToolResult' | 'UserMessage' | 'Pane'
+export type Site = 'AbovePrompt' | 'ToolGroup' | 'ToolResult' | 'UserMessage' | 'AssistantMessage' | 'Pane'
 
 // One blit loop; a stopped loop's tick that was waiting on a blit sees `isStopped` and ends.
 type Loop = { timer: Timer | undefined; isStopped: boolean }

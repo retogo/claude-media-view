@@ -2,7 +2,7 @@ export type MediaViewSeenImage = {
   key: string
   path?: string
   label: string
-  callId?: string
+  shownAtKey?: string
   rowId: string
   picture: { width: number; height: number; frames: { source: { file: string; format: 'png' }; delayMs: number }[] }
 }
@@ -10,7 +10,15 @@ export type MediaViewSeenImage = {
 declare module 'claude-code' {
   interface PluginState {
     'media-view': {
-      isTranscriptAnimated: boolean
+      // What media-view draws, loaded from the plugin's store at session start.
+      settings: {
+        abovePrompt: boolean
+        sentPastes: boolean
+        readImages: boolean
+        toolImages: boolean
+        replyPaths: boolean
+        animateGifs: boolean
+      }
       draftImageNumbers: number[]
       mediaViewScrollOffset: number
       // When each image showed in the chat, ms since the epoch: by tool call id, or `paste-<n>` for a sent paste.

@@ -3,12 +3,19 @@ import { loadPicture, readPathOf } from '../images'
 import type { Ports } from '../ports'
 import { isShown, placeInRows, type PictureRows, type Shown } from './pictureRows'
 
-// The pictures of a call shown on its own `ToolResult` row, a Read's or an MCP tool's; null when it has none.
+// The pictures of a call shown on its own `ToolResult` row, a Read's or an MCP tool's, when `showsTool` lets its
+// tool through (every tool when absent); null when it has none.
 export const toolResult = async (
   ports: Ports,
-  { toolUseId, tool, output, viewportColumns }: { toolUseId: string; tool: string; output: unknown; viewportColumns: number | undefined },
+  {
+    toolUseId,
+    tool,
+    output,
+    viewportColumns,
+    showsTool = () => true,
+  }: { toolUseId: string; tool: string; output: unknown; viewportColumns: number | undefined; showsTool?: (tool: string) => boolean },
 ): Promise<PictureRows | null> => {
-  const images = toolOutputImages(tool, output)
+  const images = showsTool(tool) ? toolOutputImages(tool, output) : []
   if (images.length === 0) {
     return null
   }
@@ -19,7 +26,7 @@ export const toolResult = async (
     if (picture === null) {
       return null
     }
-    await ports.rememberSeen({ key, path, label: path ?? tool, callId: toolUseId, rowId: toolUseId, picture })
+    await ports.rememberSeen({ key, path, label: path ?? tool, shownAtKey: toolUseId, rowId: toolUseId, picture })
     return { key: `image-${n}`, picture }
   })
   const shown: Shown[] = (await Promise.all(loading)).filter(isShown)

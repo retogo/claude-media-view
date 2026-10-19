@@ -15,6 +15,8 @@ export const ENTRY_GAP = 1
 const BUTTON_ROWS = 1
 // Between an entry's time and its label.
 const HEADING_GAP = '  '
+// Room between the panes' content and the engine's tab row above and frame beside: rows on top, columns each side.
+export const PANE_PADDING = { top: 1, x: 1 }
 
 // One image of the media-view pane: `label` names it and `heading` puts the time it showed in the chat before
 // that, when known; `path` is the file its buttons copy and open, `rowId` is the transcript row to show it in,
@@ -70,7 +72,7 @@ const pastedImages = async (ports: Ports, sessionId: string) => {
 const toolImages = async (ports: Ports) =>
   (await ports.seenImages())
     .reverse()
-    .map(({ key, callId, label, path, picture, rowId }) => ({ id: `read-${key}`, timeKey: callId, label, path: path ?? picture.frames[0]!.source.file, picture, rowId }))
+    .map(({ key, shownAtKey, label, path, picture, rowId }) => ({ id: `read-${key}`, timeKey: shownAtKey, label, path: path ?? picture.frames[0]!.source.file, picture, rowId }))
 
 // Every image of the session: pasted ones newest first, then the ones tools' results drew, newest first.
 // `shownAt` holds when each image showed in the chat, by tool call id or by `pasteShownAtKey`.
@@ -79,16 +81,17 @@ export const mediaViewPane = async (
   { bodyColumns, scroll, shownAt }: { bodyColumns: number; scroll: PaneScroll; shownAt: Readonly<Record<string, number>> },
 ): Promise<MediaViewEntry[]> => {
   const sessionId = await ports.sessionId()
+  const columns = bodyColumns - 2 * PANE_PADDING.x
   const shown = [...(await pastedImages(ports, sessionId)), ...(await toolImages(ports))].flatMap(entry =>
     entry.picture === null
       ? []
-      : [{ ...entry, picture: entry.picture, box: cellBox(entry.picture, { maxColumns: Math.min(MAX_COLUMNS, bodyColumns), maxRows: MAX_ROWS }) }],
+      : [{ ...entry, picture: entry.picture, box: cellBox(entry.picture, { maxColumns: Math.min(MAX_COLUMNS, columns), maxRows: MAX_ROWS }) }],
   )
-  let top = 0
+  let top = PANE_PADDING.top
   return shown.map(({ timeKey, ...entry }) => {
     const at = timeKey === undefined ? undefined : shownAt[timeKey]
     const heading = at === undefined ? entry.label : `${formatShownAt(at)}${HEADING_GAP}${entry.label}`
-    const rows = Math.ceil(heading.length / bodyColumns) + BUTTON_ROWS + entry.box.rows
+    const rows = Math.ceil(heading.length / columns) + BUTTON_ROWS + entry.box.rows
     const isVisible = top < scroll.offset + scroll.bodyRows && top + rows > scroll.offset
     top += rows + ENTRY_GAP
     return { ...entry, heading, isVisible }

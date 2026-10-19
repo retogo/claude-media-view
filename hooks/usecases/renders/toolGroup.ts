@@ -5,12 +5,20 @@ import { isShown, placeInRows, type PictureRows, type Shown } from './pictureRow
 
 export type ToolGroupCall = { tool_use_id?: string; tool: string; input: unknown; output?: unknown }
 
-// The pictures of the calls folded into one `ToolGroup` row, a Read's or an MCP tool's; null when it has none.
+// The pictures of the calls folded into one `ToolGroup` row, a Read's or an MCP tool's, of the tools `showsTool`
+// lets through (every tool when absent); null when it has none.
 export const toolGroup = async (
   ports: Ports,
-  { requestId, calls, viewportColumns }: { requestId: string; calls: readonly ToolGroupCall[]; viewportColumns: number | undefined },
+  {
+    requestId,
+    calls,
+    viewportColumns,
+    showsTool = () => true,
+  }: { requestId: string; calls: readonly ToolGroupCall[]; viewportColumns: number | undefined; showsTool?: (tool: string) => boolean },
 ): Promise<PictureRows | null> => {
-  const images = calls.flatMap((call, i) => toolOutputImages(call.tool, call.output).map((load, n) => ({ call, i, n, load })))
+  const images = calls.flatMap((call, i) =>
+    showsTool(call.tool) ? toolOutputImages(call.tool, call.output).map((load, n) => ({ call, i, n, load })) : [],
+  )
   if (images.length === 0) {
     return null
   }
@@ -24,7 +32,7 @@ export const toolGroup = async (
     }
     const inputPath = (call.input as { file_path?: unknown } | undefined)?.file_path
     const path = call.tool !== 'Read' ? undefined : typeof inputPath === 'string' ? inputPath : readPathOf(key)
-    await ports.rememberSeen({ key, path, label: path ?? call.tool, callId: call.tool_use_id, rowId: requestId, picture })
+    await ports.rememberSeen({ key, path, label: path ?? call.tool, shownAtKey: call.tool_use_id, rowId: requestId, picture })
     return { key: `image-${i}-${n}`, picture }
   })
   const shown: Shown[] = (await Promise.all(loading)).filter(isShown)
