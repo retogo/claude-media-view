@@ -77,10 +77,11 @@ const SVG_MAX_EDGE = 1024
 const BYTE_ORDER_MARK = /^\uFEFF/
 // What is not drawn, whatever the renderer does with it (ADR 0031): a document type, where entities that expand as
 // the SVG is read are declared, and every way an SVG can refer outside itself. A reference may name a part of the
-// SVG (`#id`) or carry a PNG, JPEG or GIF inline; anything else, a character reference included, counts as outside.
+// SVG (`#id`) or carry a PNG, JPEG or GIF inline; anything else counts as outside. The patterns read the SVG as a
+// parser and CSS would, past character references and escapes.
 const INSIDE_REFERENCE = String.raw`(?:#|data:image\/(?:png|jpe?g|gif)[;,])`
-// An element may carry any namespace prefix, as `svg:foreignObject`.
-const ELEMENT_PREFIX = String.raw`(?:[\w.-]+:)?`
+// An element may carry any namespace prefix, as `svg:foreignObject`, in any characters a name may hold.
+const ELEMENT_PREFIX = String.raw`(?:[^\s<>/:="']+:)?`
 const UNSAFE_SVG = [
   /<!DOCTYPE/i,
   new RegExp(String.raw`\bhref\s*=(?!\s*["']\s*${INSIDE_REFERENCE})`, 'i'),
@@ -89,12 +90,16 @@ const UNSAFE_SVG = [
   new RegExp(String.raw`<${ELEMENT_PREFIX}foreignObject\b`, 'i'),
   new RegExp(String.raw`<${ELEMENT_PREFIX}include\b`, 'i'),
 ]
-// A character reference (`&#117;` for `u`) or a CSS escape (`\75 ` for `u`) in an attribute or a style sheet could
-// spell a reference these patterns miss, so neither is drawn there; text content may hold both. A style sheet left
-// open runs to the end of the file.
-const ATTRIBUTE_VALUE = /=\s*(?:"([^"]*)"|'([^']*)')/g
-const STYLE_SHEET = new RegExp(String.raw`<${ELEMENT_PREFIX}style\b[\s\S]*?(?:<\/${ELEMENT_PREFIX}style\s*>|$)`, 'gi')
-const ESCAPE = /&#|\\/
+// A parser turns a character reference (`&#117;`, `&#x75;`) or a predefined entity (`&quot;`) into its character,
+// and CSS then turns an escape (`\75 `, `\u`) into its own: either could spell a reference the patterns would miss
+// in the raw text. A code point past Unicode's, or none, is read as the replacement character, as CSS reads it.
+const CHARACTER_REFERENCE = /&#(?:x([0-9a-f]+)|([0-9]+));/gi
+const PREDEFINED_ENTITY = /&(lt|gt|amp|quot|apos);/g
+const PREDEFINED_CHARACTERS: Record<string, string> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" }
+const CSS_ESCAPE = /\\(?:([0-9a-f]{1,6})[ \t\n\r\f]?|([^\n\r\f0-9a-f]))/gi
+const HEX = 16
+const MAX_CODE_POINT = 0x10ffff
+const REPLACEMENT_CHARACTER = '\uFFFD'
 // The module reads an SVG as UTF-8, so one a parser would read in another encoding could hold what this reading
 // does not see. An XML declaration is read only as the specification writes it, first in the file and declaring
 // UTF-8 if any encoding; any other `<?xml`, a style sheet's processing instruction among them, is not drawn.
@@ -280,21 +285,26 @@ const isReadAsUtf8 = (text: string) => {
   return targets === 0 || (targets === 1 && XML_DECLARATION.test(text))
 }
 
-// Whether an attribute or a style sheet escapes anything.
-const escapesMarkup = (text: string) =>
-  [...text.matchAll(ATTRIBUTE_VALUE)].some(([, double, single]) => ESCAPE.test(double ?? single!)) ||
-  [...text.matchAll(STYLE_SHEET)].some(([sheet]) => ESCAPE.test(sheet))
+const character = (codePoint: number) =>
+  codePoint > 0 && codePoint <= MAX_CODE_POINT ? String.fromCodePoint(codePoint) : REPLACEMENT_CHARACTER
 
-// An SVG's size, unless a parser could read it in another encoding than UTF-8, or it declares a document type,
-// refers outside itself or escapes what could hide such a reference.
+// The SVG as a parser and then CSS read it: character references and predefined entities, then CSS escapes, decoded.
+const decodedSvg = (text: string) =>
+  text
+    .replace(CHARACTER_REFERENCE, (_, hex: string | undefined, decimal: string) => character(hex ? parseInt(hex, HEX) : Number(decimal)))
+    .replace(PREDEFINED_ENTITY, (_, name: string) => PREDEFINED_CHARACTERS[name]!)
+    .replace(CSS_ESCAPE, (_, hex: string | undefined, other: string) => (hex ? character(parseInt(hex, HEX)) : other))
+
+// An SVG's size, unless a parser could read it in another encoding than UTF-8, or it declares a document type or
+// refers outside itself.
 const svgShape = (bytes: Uint8Array): Size | undefined | null => {
   const text = new TextDecoder().decode(bytes).replace(BYTE_ORDER_MARK, '')
   const tag = svgRootTag(text)
   if (tag === undefined) {
     return null
   }
-  const isSafe = isReadAsUtf8(text) && !UNSAFE_SVG.some(pattern => pattern.test(text)) && !escapesMarkup(text)
-  return isSafe ? svgSize(tag) : undefined
+  const decoded = decodedSvg(text)
+  return isReadAsUtf8(text) && !UNSAFE_SVG.some(pattern => pattern.test(decoded)) ? svgSize(tag) : undefined
 }
 
 const formatAndShape = (bytes: Uint8Array): [ConvertedFormat, Size | undefined, number] | null => {

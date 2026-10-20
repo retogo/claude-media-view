@@ -126,7 +126,6 @@ describe('sniffConverted of an SVG', () => {
     expect(inside('<image href="http://example.com/a.png"/>')).toBeNull()
     expect(inside('<image xlink:href="file:///etc/hosts"/>')).toBeNull()
     expect(inside('<use href="other.svg#a"/>')).toBeNull()
-    expect(inside('<use href="&#35;a"/>')).toBeNull()
     expect(inside('<rect style="fill: url(http://example.com/p.svg#a)"/>')).toBeNull()
     expect(inside('<style>@import "a.css";</style>')).toBeNull()
     expect(inside('<foreignObject><div xmlns="http://www.w3.org/1999/xhtml"/></foreignObject>')).toBeNull()
@@ -134,6 +133,7 @@ describe('sniffConverted of an SVG', () => {
     expect(inside('<image href="data:image/svg+xml;base64,PHN2Zy8+"/>')).toBeNull()
     expect(inside('<svg:foreignObject><div xmlns="http://www.w3.org/1999/xhtml"/></svg:foreignObject>')).toBeNull()
     expect(inside('<x.y-z:include href="#a"/>')).toBeNull()
+    expect(inside('<é:foreignObject><div xmlns="http://www.w3.org/1999/xhtml"/></é:foreignObject>')).toBeNull()
     expect(inside('<use href="#a"/><rect fill="url(#g)"/><rect fill="url( \'#g\' )"/><image href="data:image/png;base64,AAAA"/>')).toEqual({
       format: 'svg',
       width: 8,
@@ -142,14 +142,23 @@ describe('sniffConverted of an SVG', () => {
     })
   })
 
-  test('answers null for an SVG escaping anything in an attribute or a style sheet, where an escape can hide a reference', () => {
+  test('reads references past character references and CSS escapes, as a parser and CSS would', () => {
     const inside = (body: string) => svg(`<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">${body}</svg>`)
 
     expect(inside('<rect fill="&#117;rl(http://example.com/p.svg#a)"/>')).toBeNull()
+    expect(inside('<rect fill="&#x75;rl(http://example.com/p.svg#a)"/>')).toBeNull()
     expect(inside("<rect style='fill: \\75 rl(http://example.com/p.svg#a)'/>")).toBeNull()
+    expect(inside('<rect style="fill: &#92;75 rl(http://example.com/p.svg#a)"/>')).toBeNull()
     expect(inside('<style>@\\69 mport "a.css";</style>')).toBeNull()
     expect(inside('<svg:style>rect { fill: u\\rl(http://example.com/p.svg#a) }')).toBeNull()
-    expect(inside('<text x="0" y="8">C:\\out &#8211; done</text><style>rect { fill: url(#g) }</style>')).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
+    expect(inside('<rect style="fill: url(&quot;http://example.com/p.svg#a&quot;)"/>')).toBeNull()
+    expect(inside('<text>a="</text><rect fill="&#117;rl(http://example.com/p.svg#a)"/>')).toBeNull()
+    expect(inside('<text x="0" y="8">C:\\out &#8211; done</text><use href="&#35;a"/><style>rect { fill: url(#g) }</style>')).toEqual({
+      format: 'svg',
+      width: 8,
+      height: 8,
+      frames: 1,
+    })
   })
 
   test('reads a crafted SVG in time linear in its length', () => {
@@ -158,6 +167,7 @@ describe('sniffConverted of an SVG', () => {
     expect(svg(`<svg${' width="'.repeat(200_000)}>`)).toBeNull()
     expect(svg(`<svg width="8" height="8">${'<style>a="b'.repeat(100_000)}`)).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
     expect(svg(`<svg width="8" height="8">${"<x a='1\" b=\"2'".repeat(100_000)}`)).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
+    expect(svg(`<svg width="8" height="8">${'&#1&#x\\'.repeat(100_000)}`)).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
     expect(performance.now() - started).toBeLessThan(500)
   })
 })
