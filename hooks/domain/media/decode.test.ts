@@ -112,6 +112,14 @@ describe('sniffConverted of an SVG', () => {
     expect(svg('<?xml version="1.0" encoding="utf-8"?><svg width="8" height="8"/>')).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
   })
 
+  test('reads an XML declaration only as the specification writes it, first in the file, and answers null for any other', () => {
+    expect(svg('<?xml version="1.0" standalone="no"?><svg width="8" height="8"/>')).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
+    expect(svg(' <?xml version="1.0" encoding="UTF-7"?><svg width="8" height="8"/>')).toBeNull()
+    expect(svg('<!-- first --><?xml version="1.0" encoding="UTF-7"?><svg width="8" height="8"/>')).toBeNull()
+    expect(svg('<?xml encoding="UTF-7" version="1.0"?><svg width="8" height="8"/>')).toBeNull()
+    expect(svg('<?XML version="1.0" encoding="UTF-7"?><svg width="8" height="8"/>')).toBeNull()
+  })
+
   test('answers null for an SVG that refers outside itself, and draws one whose references stay inside it', () => {
     const inside = (body: string) => svg(`<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">${body}</svg>`)
 
@@ -124,6 +132,8 @@ describe('sniffConverted of an SVG', () => {
     expect(inside('<foreignObject><div xmlns="http://www.w3.org/1999/xhtml"/></foreignObject>')).toBeNull()
     expect(inside('<xi:include href="#a"/>')).toBeNull()
     expect(inside('<image href="data:image/svg+xml;base64,PHN2Zy8+"/>')).toBeNull()
+    expect(inside('<svg:foreignObject><div xmlns="http://www.w3.org/1999/xhtml"/></svg:foreignObject>')).toBeNull()
+    expect(inside('<x.y-z:include href="#a"/>')).toBeNull()
     expect(inside('<use href="#a"/><rect fill="url(#g)"/><rect fill="url( \'#g\' )"/><image href="data:image/png;base64,AAAA"/>')).toEqual({
       format: 'svg',
       width: 8,
@@ -132,10 +142,22 @@ describe('sniffConverted of an SVG', () => {
     })
   })
 
-  test('reads no root tag longer than any SVG needs, so a crafted one costs no more than its length', () => {
+  test('answers null for an SVG escaping anything in an attribute or a style sheet, where an escape can hide a reference', () => {
+    const inside = (body: string) => svg(`<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">${body}</svg>`)
+
+    expect(inside('<rect fill="&#117;rl(http://example.com/p.svg#a)"/>')).toBeNull()
+    expect(inside("<rect style='fill: \\75 rl(http://example.com/p.svg#a)'/>")).toBeNull()
+    expect(inside('<style>@\\69 mport "a.css";</style>')).toBeNull()
+    expect(inside('<svg:style>rect { fill: u\\rl(http://example.com/p.svg#a) }')).toBeNull()
+    expect(inside('<text x="0" y="8">C:\\out &#8211; done</text><style>rect { fill: url(#g) }</style>')).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
+  })
+
+  test('reads a crafted SVG in time linear in its length', () => {
     const started = performance.now()
 
     expect(svg(`<svg${' width="'.repeat(200_000)}>`)).toBeNull()
+    expect(svg(`<svg width="8" height="8">${'<style>a="b'.repeat(100_000)}`)).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
+    expect(svg(`<svg width="8" height="8">${"<x a='1\" b=\"2'".repeat(100_000)}`)).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
     expect(performance.now() - started).toBeLessThan(500)
   })
 })

@@ -24,8 +24,11 @@ An SVG is drawn at the size its root element declares in pixels, else its `viewB
 What an SVG may hold is checked on the module's own reading of it, not left to the renderer, whose behaviour is the OS's to change:
 
 - No `<!DOCTYPE`, which is where entities that expand as the SVG is read are declared.
-- No XML declaration of an encoding other than UTF-8. The module reads the text as UTF-8; a parser honouring a declared UTF-7 would read `+ADw-!DOCTYPE` as a document type the module never sees.
-- No reference outside itself: an `href` or a CSS `url(` must name a part of the SVG (`#id`) or carry a PNG, JPEG or GIF inline as a `data:` URL; no `@import`, `<foreignObject>` or XInclude. A character reference in a link counts as outside, and so does an inline SVG, whose own references this reading would not see. Charts and diagrams Claude writes refer to nothing outside, so little is lost; a link (`<a href="https://…">`) leaves the SVG undrawn.
+- Nothing a parser would read in another encoding than UTF-8. The module reads the text as UTF-8; a parser honouring a declared UTF-7 would read `+ADw-!DOCTYPE` as a document type the module never sees. So an XML declaration is taken only first in the file, in the specification's form and order, declaring UTF-8 if any encoding, and no other `<?xml` may follow, a style sheet's processing instruction included.
+- No reference outside itself: an `href` or a CSS `url(` must name a part of the SVG (`#id`) or carry a PNG, JPEG or GIF inline as a `data:` URL; no `@import`, `<foreignObject>` or XInclude, whatever namespace prefix the element carries. A character reference in a link counts as outside, and so does an inline SVG, whose own references this reading would not see. Charts and diagrams Claude writes refer to nothing outside, so little is lost; a link (`<a href="https://…">`) leaves the SVG undrawn.
+- No escape in an attribute or a style sheet. A parser decodes `&#117;rl(` to `url(` and CSS reads `\75 rl(` as `url(`, so the patterns above, read on the raw text, would miss them. Text content may hold both, as labels often do.
+
+These checks read the raw text with patterns rather than parsing XML and CSS, which the module has no parser for; each pattern is anchored so that a crafted file is read in time linear in its length (ADR 0022).
 
 A drawing's cost does not follow from its size: paths, filters and nested `<use>` can keep a small SVG drawing for long. Every conversion is given up on past a time limit and counts as failed.
 

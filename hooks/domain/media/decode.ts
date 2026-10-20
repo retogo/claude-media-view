@@ -79,18 +79,27 @@ const BYTE_ORDER_MARK = /^\uFEFF/
 // the SVG is read are declared, and every way an SVG can refer outside itself. A reference may name a part of the
 // SVG (`#id`) or carry a PNG, JPEG or GIF inline; anything else, a character reference included, counts as outside.
 const INSIDE_REFERENCE = String.raw`(?:#|data:image\/(?:png|jpe?g|gif)[;,])`
+// An element may carry any namespace prefix, as `svg:foreignObject`.
+const ELEMENT_PREFIX = String.raw`(?:[\w.-]+:)?`
 const UNSAFE_SVG = [
   /<!DOCTYPE/i,
   new RegExp(String.raw`\bhref\s*=(?!\s*["']\s*${INSIDE_REFERENCE})`, 'i'),
   new RegExp(String.raw`\burl\s*\((?!\s*["']?\s*${INSIDE_REFERENCE})`, 'i'),
   /@import/i,
-  /<foreignObject/i,
-  /<(?:[\w-]+:)?include\b/i,
+  new RegExp(String.raw`<${ELEMENT_PREFIX}foreignObject\b`, 'i'),
+  new RegExp(String.raw`<${ELEMENT_PREFIX}include\b`, 'i'),
 ]
-// An XML declaration's encoding: the module reads an SVG as UTF-8, so one declared in another encoding could hold
-// what this reading does not see.
-const XML_ENCODING = /^<\?xml\b[^?]*?\bencoding\s*=\s*(["'])(.*?)\1/
-const UTF_8 = 'utf-8'
+// A character reference (`&#117;` for `u`) or a CSS escape (`\75 ` for `u`) in an attribute or a style sheet could
+// spell a reference these patterns miss, so neither is drawn there; text content may hold both. A style sheet left
+// open runs to the end of the file.
+const ATTRIBUTE_VALUE = /=\s*(?:"([^"]*)"|'([^']*)')/g
+const STYLE_SHEET = new RegExp(String.raw`<${ELEMENT_PREFIX}style\b[\s\S]*?(?:<\/${ELEMENT_PREFIX}style\s*>|$)`, 'gi')
+const ESCAPE = /&#|\\/
+// The module reads an SVG as UTF-8, so one a parser would read in another encoding could hold what this reading
+// does not see. An XML declaration is read only as the specification writes it, first in the file and declaring
+// UTF-8 if any encoding; any other `<?xml`, a style sheet's processing instruction among them, is not drawn.
+const XML_DECLARATION = /^<\?xml\s+version\s*=\s*(["'])1\.\d+\1(?:\s+encoding\s*=\s*(["'])utf-8\2)?(?:\s+standalone\s*=\s*(["'])(?:yes|no)\3)?\s*\?>/i
+const XML_PROCESSING_TARGET = /<\?xml/gi
 
 // `index` and `startMs` place the frame in its source, which may have had more frames.
 export type RgbaFrame = { rgba: Uint8Array; delayMs: number; index: number; startMs: number }
@@ -265,17 +274,27 @@ const svgSize = (tag: string): Size | undefined => {
   return { width: Math.max(1, Math.round(width! * scale)), height: Math.max(1, Math.round(height! * scale)) }
 }
 
-// An SVG's size, unless it is declared in another encoding than UTF-8, declares a document type or refers outside
-// itself.
+// Whether a parser would read the SVG as UTF-8, as the module does: no XML declaration, or one alone, first.
+const isReadAsUtf8 = (text: string) => {
+  const targets = text.match(XML_PROCESSING_TARGET)?.length ?? 0
+  return targets === 0 || (targets === 1 && XML_DECLARATION.test(text))
+}
+
+// Whether an attribute or a style sheet escapes anything.
+const escapesMarkup = (text: string) =>
+  [...text.matchAll(ATTRIBUTE_VALUE)].some(([, double, single]) => ESCAPE.test(double ?? single!)) ||
+  [...text.matchAll(STYLE_SHEET)].some(([sheet]) => ESCAPE.test(sheet))
+
+// An SVG's size, unless a parser could read it in another encoding than UTF-8, or it declares a document type,
+// refers outside itself or escapes what could hide such a reference.
 const svgShape = (bytes: Uint8Array): Size | undefined | null => {
   const text = new TextDecoder().decode(bytes).replace(BYTE_ORDER_MARK, '')
   const tag = svgRootTag(text)
   if (tag === undefined) {
     return null
   }
-  const encoding = text.match(XML_ENCODING)?.[2]
-  const isUnsafe = (encoding !== undefined && encoding.toLowerCase() !== UTF_8) || UNSAFE_SVG.some(pattern => pattern.test(text))
-  return isUnsafe ? undefined : svgSize(tag)
+  const isSafe = isReadAsUtf8(text) && !UNSAFE_SVG.some(pattern => pattern.test(text)) && !escapesMarkup(text)
+  return isSafe ? svgSize(tag) : undefined
 }
 
 const formatAndShape = (bytes: Uint8Array): [ConvertedFormat, Size | undefined, number] | null => {
