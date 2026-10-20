@@ -19,7 +19,13 @@ Claude often writes diagrams and charts as SVG and names the file in its reply. 
 
 Option 1, on macOS only; Linux and Windows draw no SVG for now. `NSImage` reads an SVG by its content and draws it at any size into a bitmap, written as a PNG. `sips` needs the `.svg` extension and draws at the SVG's own size; `qlmanage` pads to a square and is slower. Options 4 and 5 are left: nothing on Linux or Windows draws SVG out of the box, and a browser engine is too heavy for a picture in a row.
 
-An SVG is drawn at the size its root element declares in pixels, else its `viewBox`'s, scaled down to a still's longest edge. A size it declares nowhere, or as relative lengths alone, leaves it undrawn, as does any `<!DOCTYPE`, which is where entities are declared. ffmpeg, even where preferred, leaves SVG to the OS, as builds commonly lack librsvg.
+An SVG is drawn at the size its root element declares in pixels, else its `viewBox`'s, scaled down to a still's longest edge. A size it declares nowhere, or as relative lengths alone, leaves it undrawn. ffmpeg, even where preferred, leaves SVG to the OS, as builds commonly lack librsvg.
+
+What an SVG may hold is checked on the module's own reading of it, not left to the renderer, whose behaviour is the OS's to change:
+
+- No `<!DOCTYPE`, which is where entities that expand as the SVG is read are declared.
+- No XML declaration of an encoding other than UTF-8. The module reads the text as UTF-8; a parser honouring a declared UTF-7 would read `+ADw-!DOCTYPE` as a document type the module never sees.
+- No reference outside itself: an `href` or a CSS `url(` must name a part of the SVG (`#id`) or carry a PNG, JPEG or GIF inline as a `data:` URL; no `@import`, `<foreignObject>` or XInclude. A character reference in a link counts as outside, and so does an inline SVG, whose own references this reading would not see. Charts and diagrams Claude writes refer to nothing outside, so little is lost; a link (`<a href="https://…">`) leaves the SVG undrawn.
 
 A drawing's cost does not follow from its size: paths, filters and nested `<use>` can keep a small SVG drawing for long. Every conversion is given up on past a time limit and counts as failed.
 
@@ -39,6 +45,7 @@ macOS 26.6.2, an SVG of 200×100 with a gradient, a circle and text:
 
 - Setting the drawing context by assigning `$.NSGraphicsContext.currentContext` drew nothing; `setCurrentContext(...)` drew.
 - An SVG with `<image xlink:href>` to a local PNG and to `http://127.0.0.1:8765/…`: `NSImage` and `sips` each drew a placeholder for both, and the HTTP server logged no request. One referring to `file:///etc/hosts` drew a placeholder as well.
+- An SVG with `<style>@import url(http://127.0.0.1:8766/style.css)</style>`, a `fill: url(http://…/other.svg#r)`, `<use xlink:href="http://…/other.svg#r">`, `<use href="file:///…/other.svg#r">` (a red square) and a `<foreignObject>` holding an `<iframe src="http://…">`, drawn by `NSImage` into a bitmap: the HTTP server logged no request, and no red showed.
 - Text that is no SVG: `AppKit read no SVG`, exit 1, no output.
 - ffmpeg 9.0.1 from nixpkgs lists no SVG decoder (`--disable-librsvg`); no `rsvg-convert` was installed.
 - `$.process.run` gives up on a process after 30 s by default and rejects.
@@ -46,4 +53,4 @@ macOS 26.6.2, an SVG of 200×100 with a gradient, a circle and text:
 ## Consequences
 
 - An SVG a reply names shows on macOS; on Linux and Windows it shows no picture.
-- An SVG declaring no pixel size and no `viewBox` shows no picture.
+- An SVG declaring no pixel size and no `viewBox` shows no picture, nor does one with a document type, a declared encoding other than UTF-8, or a reference outside itself.

@@ -95,7 +95,7 @@ describe('sniffConverted of an SVG', () => {
   })
 
   test('finds the root after a byte order mark, an XML declaration, comments and white space', () => {
-    expect(svg('﻿<?xml version="1.0"?>\n<!-- drawn by hand -->\n<svg width="8" height="8"/>')).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
+    expect(svg('\uFEFF<?xml version="1.0"?>\n<!-- drawn by hand -->\n<svg width="8" height="8"/>')).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
   })
 
   test('answers null for an SVG with a document type, which may declare entities, or with no size, and for other XML', () => {
@@ -104,6 +104,32 @@ describe('sniffConverted of an SVG', () => {
     expect(svg('<svg/>')).toBeNull()
     expect(svg('<svg width="0" height="8"/>')).toBeNull()
     expect(svg('<html><svg width="8" height="8"/></html>')).toBeNull()
+  })
+
+  test('answers null for an SVG declared in an encoding other than UTF-8, which could hide a document type from this reading', () => {
+    expect(svg('<?xml version="1.0" encoding="UTF-7"?><svg width="8" height="8"/>')).toBeNull()
+    expect(svg("<?xml version='1.0' encoding='ISO-8859-1'?><svg width=\"8\" height=\"8\"/>")).toBeNull()
+    expect(svg('<?xml version="1.0" encoding="utf-8"?><svg width="8" height="8"/>')).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
+  })
+
+  test('answers null for an SVG that refers outside itself, and draws one whose references stay inside it', () => {
+    const inside = (body: string) => svg(`<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">${body}</svg>`)
+
+    expect(inside('<image href="http://example.com/a.png"/>')).toBeNull()
+    expect(inside('<image xlink:href="file:///etc/hosts"/>')).toBeNull()
+    expect(inside('<use href="other.svg#a"/>')).toBeNull()
+    expect(inside('<use href="&#35;a"/>')).toBeNull()
+    expect(inside('<rect style="fill: url(http://example.com/p.svg#a)"/>')).toBeNull()
+    expect(inside('<style>@import "a.css";</style>')).toBeNull()
+    expect(inside('<foreignObject><div xmlns="http://www.w3.org/1999/xhtml"/></foreignObject>')).toBeNull()
+    expect(inside('<xi:include href="#a"/>')).toBeNull()
+    expect(inside('<image href="data:image/svg+xml;base64,PHN2Zy8+"/>')).toBeNull()
+    expect(inside('<use href="#a"/><rect fill="url(#g)"/><rect fill="url( \'#g\' )"/><image href="data:image/png;base64,AAAA"/>')).toEqual({
+      format: 'svg',
+      width: 8,
+      height: 8,
+      frames: 1,
+    })
   })
 
   test('reads no root tag longer than any SVG needs, so a crafted one costs no more than its length', () => {

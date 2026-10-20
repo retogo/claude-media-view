@@ -73,8 +73,24 @@ const SVG_ROOT = /^<svg[\s/>]/
 const SVG_ATTRIBUTE = /\s(width|height|viewBox)\s*=\s*(["'])(.*?)\2/g
 const PIXEL_LENGTH = /^\s*(\d+(?:\.\d+)?|\.\d+)\s*(?:px)?\s*$/
 const VIEW_BOX_SEPARATOR = /[\s,]+/
-const DOCUMENT_TYPE = /<!DOCTYPE/i
 const SVG_MAX_EDGE = 1024
+const BYTE_ORDER_MARK = /^\uFEFF/
+// What is not drawn, whatever the renderer does with it (ADR 0031): a document type, where entities that expand as
+// the SVG is read are declared, and every way an SVG can refer outside itself. A reference may name a part of the
+// SVG (`#id`) or carry a PNG, JPEG or GIF inline; anything else, a character reference included, counts as outside.
+const INSIDE_REFERENCE = String.raw`(?:#|data:image\/(?:png|jpe?g|gif)[;,])`
+const UNSAFE_SVG = [
+  /<!DOCTYPE/i,
+  new RegExp(String.raw`\bhref\s*=(?!\s*["']\s*${INSIDE_REFERENCE})`, 'i'),
+  new RegExp(String.raw`\burl\s*\((?!\s*["']?\s*${INSIDE_REFERENCE})`, 'i'),
+  /@import/i,
+  /<foreignObject/i,
+  /<(?:[\w-]+:)?include\b/i,
+]
+// An XML declaration's encoding: the module reads an SVG as UTF-8, so one declared in another encoding could hold
+// what this reading does not see.
+const XML_ENCODING = /^<\?xml\b[^?]*?\bencoding\s*=\s*(["'])(.*?)\1/
+const UTF_8 = 'utf-8'
 
 // `index` and `startMs` place the frame in its source, which may have had more frames.
 export type RgbaFrame = { rgba: Uint8Array; delayMs: number; index: number; startMs: number }
@@ -211,10 +227,10 @@ const webpFrames = (bytes: Uint8Array) => {
   return frames
 }
 
-// The start tag of an SVG's root element, past a byte order mark, an XML declaration, comments and white space;
-// undefined when the first element is not `<svg`.
+// The start tag of an SVG's root element, past an XML declaration, comments and white space; undefined when the
+// first element is not `<svg`.
 const svgRootTag = (text: string) => {
-  let rest = text.replace(/^﻿/, '')
+  let rest = text
   for (;;) {
     rest = rest.trimStart()
     const prolog = PROLOG_ENDS.find(({ start }) => rest.startsWith(start))
@@ -249,14 +265,17 @@ const svgSize = (tag: string): Size | undefined => {
   return { width: Math.max(1, Math.round(width! * scale)), height: Math.max(1, Math.round(height! * scale)) }
 }
 
-// An SVG's size, unless a document type could declare entities that expand as it is read.
+// An SVG's size, unless it is declared in another encoding than UTF-8, declares a document type or refers outside
+// itself.
 const svgShape = (bytes: Uint8Array): Size | undefined | null => {
-  const text = new TextDecoder().decode(bytes)
+  const text = new TextDecoder().decode(bytes).replace(BYTE_ORDER_MARK, '')
   const tag = svgRootTag(text)
   if (tag === undefined) {
     return null
   }
-  return DOCUMENT_TYPE.test(text) ? undefined : svgSize(tag)
+  const encoding = text.match(XML_ENCODING)?.[2]
+  const isUnsafe = (encoding !== undefined && encoding.toLowerCase() !== UTF_8) || UNSAFE_SVG.some(pattern => pattern.test(text))
+  return isUnsafe ? undefined : svgSize(tag)
 }
 
 const formatAndShape = (bytes: Uint8Array): [ConvertedFormat, Size | undefined, number] | null => {
