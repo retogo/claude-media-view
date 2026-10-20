@@ -47,8 +47,8 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0007](0007-picture-work-outlives-renders.md) | Picture work outlives the render that asked for it | Accepted |
 | [0008](0008-gifs-move-by-default-where-seen.md) | GIFs move by default, and only where they are seen | Accepted |
 | [0009](0009-no-enlarge-on-hover.md) | No enlargement on hover | Rejected |
-| [0010](0010-images-to-the-model.md) | Images reach the model as content blocks, one per GIF frame | Accepted |
-| [0011](0011-frames-reads-only-what-read-may.md) | The frames tool reads only what Read may | Accepted |
+| [0010](0010-images-to-the-model.md) | Images reach the model as content blocks, one per GIF frame | Superseded by 0032 |
+| [0011](0011-frames-reads-only-what-read-may.md) | The frames tool reads only what Read may | Superseded by 0032 |
 | [0012](0012-decoders-bound-what-a-file-can-cost.md) | Decoders bound what a file can make them allocate and do | Accepted |
 | [0013](0013-frame-cache-in-claude-codes-private-tmp.md) | The frame cache stays in Claude Code's private tmp directory | Accepted |
 | [0014](0014-loader-rules.md) | The hooks module follows the loader's rules | Accepted |
@@ -65,7 +65,8 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0025](0025-gallery-lists-only-kept-pastes.md) | The gallery lists only the pastes in the draft or a sent prompt | Accepted |
 | [0026](0026-gallery-follows-the-chat.md) | The gallery shows what the chat shows, newest first | Accepted |
 | [0027](0027-settings-by-where-images-show.md) | Settings are split by where an image shows | Accepted |
-| [0028](0028-call-observer-registered-first.md) | The hook that watches every tool call is registered first | Accepted |
+| [0028](0028-call-observer-registered-first.md) | The hook that watches every tool call is registered first | Superseded by 0032 |
 | [0029](0029-os-converts-webp-heic-tiff.md) | The OS converts WebP, HEIC and TIFF wherever a picture is loaded | Accepted |
 | [0030](0030-ffmpeg-converts-where-installed.md) | ffmpeg converts in place of the OS where the person installed it | Accepted |
 | [0031](0031-appkit-draws-svg-on-macos.md) | AppKit draws SVG on macOS, at the size it declares | Accepted |
+| [0032](0032-no-frames-tool.md) | No frames tool: Claude reads a GIF's motion its own way | Accepted |

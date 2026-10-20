@@ -18,7 +18,6 @@ export const fakePorts = (files: Record<string, Uint8Array> = {}, overrides: Par
       return bytes
     },
     checkRead: async () => ({ decision: 'allow' }),
-    askRead: async () => undefined,
     rememberSeen: async image => {
       if (!seen.some(({ key }) => key === image.key)) {
         seen.push(image)

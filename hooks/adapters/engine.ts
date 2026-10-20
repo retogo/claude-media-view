@@ -86,11 +86,6 @@ export function enginePorts($: EngineInterface): Ports {
     sessionId: () => $.session.id(),
     readFile: path => readWhole($, path),
     checkRead: path => $.tool.check({ tool: 'Read', input: { file_path: path } }),
-    // A Read call runs Read's permission path, dialog included; its result is not used.
-    askRead: async path => {
-      const asked = await $.tool.call({ tool: 'Read', file_path: path })
-      return asked.deny ?? (asked.isError ? asked.text : undefined)
-    },
     // A render may not write state, and only a render knows the row: the write waits for the render to end.
     rememberSeen: async image => {
       const isKept = (images: readonly SeenImage[]) => images.some(({ key }) => key === image.key)

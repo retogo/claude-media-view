@@ -19,7 +19,6 @@ const startComposing = async ($: Engine, on: On, draft: { text: string }, pasted
   mock.env(on, {})
   const clock = mock.clock(on)
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
-  on('tool.register', (_$, e) => ({ value: { tool: `mcp__media-view__${e.name}` } }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('fs.stat', () => ({ value: { kind: 'file', size: 1024, mtimeMs: 0, isLink: false } }))
   on('session.id', () => ({ value: 'session-1' }))

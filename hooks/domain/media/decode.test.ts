@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { decodeMedia, decodeToRgba, isCompleteImage, sniffConverted, sniffImage } from './decode'
+import { decodeMedia, isCompleteImage, sniffConverted, sniffImage } from './decode'
 
 // 1x1 transparent PNG.
 const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -228,28 +228,5 @@ describe('isCompleteImage', () => {
 
     expect([png, gif, jpeg].map(isCompleteImage)).toEqual([true, true, true])
     expect([png, gif, jpeg].map(bytes => isCompleteImage(bytes.subarray(0, bytes.length - 3)))).toEqual([false, false, false])
-  })
-})
-
-describe('decodeToRgba', () => {
-  test('keeps only a GIF’s first frame, so many frames on a large screen stay within the work allowed', () => {
-    // A 4000×4000 screen with 31 one-pixel frames: keeping every frame would copy the screen 31 times.
-    const SIDE = 4000
-    const FRAMES = 31
-    const word = (value: number) => [value & 0xff, value >> 8]
-    const frame = [0x2c, ...word(0), ...word(0), ...word(1), ...word(1), 0, 2, 2, 0x4c, 0x01, 0]
-    const gif = new Uint8Array([
-      ...new TextEncoder().encode('GIF89a'),
-      ...word(SIDE),
-      ...word(SIDE),
-      0x80,
-      0,
-      0,
-      ...[0, 0, 0, 255, 255, 255],
-      ...Array.from({ length: FRAMES }, () => frame).flat(),
-      0x3b,
-    ])
-
-    expect(decodeToRgba(gif)?.width).toBe(SIDE)
   })
 })

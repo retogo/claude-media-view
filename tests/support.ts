@@ -129,7 +129,6 @@ export const startSession = async (
     return { value: {} }
   })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
-  on('tool.register', (_$, e) => ({ value: { tool: `mcp__media-view__${e.name}` } }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('prompt.read', () => ({ value: { text: draft.text, cursor: draft.text.length } }))
   on('session.id', () => ({ value: 'session-1' }))

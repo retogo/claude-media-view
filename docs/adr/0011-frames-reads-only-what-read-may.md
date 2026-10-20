@@ -1,6 +1,6 @@
 # 0011. The frames tool reads only what Read may
 
-- Status: Accepted
+- Status: Superseded by 0032
 - Date: 2026-10-16
 
 ## Context

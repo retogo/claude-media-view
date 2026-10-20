@@ -17,11 +17,11 @@ File names, function names, constants and the steps of an algorithm stay out of 
 
 ## Layers and names
 
-Code goes in `hooks/domain` (pure), `hooks/usecases` (decisions through ports, returning plain data) or `hooks/adapters` (`$`, JSX, timers); `hooks/register.tsx` wires hooks to usecases. Dependencies point inward, and only `register.tsx` and `adapters/` touch `$`. A usecase is named after the Claude Code event it answers (`renders/toolGroup.ts`, `toolCalls/frames.ts`), and every domain word is the one in `GLOSSARY.md`; a new word goes into `GLOSSARY.md` in the same change.
+Code goes in `hooks/domain` (pure), `hooks/usecases` (decisions through ports, returning plain data) or `hooks/adapters` (`$`, JSX, timers); `hooks/register.tsx` wires hooks to usecases. Dependencies point inward, and only `register.tsx` and `adapters/` touch `$`. A usecase is named after the Claude Code event it answers (`renders/toolGroup.ts`, `toolCalls/anyTool.ts`), and every domain word is the one in `GLOSSARY.md`; a new word goes into `GLOSSARY.md` in the same change.
 
 ## Releases
 
-Tests cannot see pixels. Before a release, check pictures by hand in Ghostty and kitty, in a foreground and a background session: a paste above the prompt, a read PNG and GIF in the transcript, the gallery, and the frames tool.
+Tests cannot see pixels. Before a release, check pictures by hand in Ghostty and kitty, in a foreground and a background session: a paste above the prompt, a read PNG and GIF in the transcript, an image file named in a reply, and the gallery.
 
 ## Probes
 

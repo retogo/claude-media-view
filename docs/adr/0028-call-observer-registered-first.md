@@ -1,6 +1,6 @@
 # 0028. The hook that watches every tool call is registered first
 
-- Status: Accepted
+- Status: Superseded by 0032
 - Date: 2026-10-19
 
 ## Context

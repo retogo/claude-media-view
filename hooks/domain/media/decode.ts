@@ -1,6 +1,6 @@
 import { decodeGif } from './gif'
-import { decodeJpeg, type Rgba } from './jpeg'
-import { decodePng, fitWithin } from './png'
+import { decodeJpeg } from './jpeg'
+import { fitWithin } from './png'
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47]
 const GIF_SIGNATURE = [0x47, 0x49, 0x46, 0x38]
@@ -382,25 +382,6 @@ export const decodeMedia = (bytes: Uint8Array, limits?: DecodeLimits): Decoded |
   const decoded = decodeJpeg(bytes)
   const jpeg = limits === undefined ? decoded : fitWithin(decoded, limits.maxStillEdge)
   return { kind: 'rgba', width: jpeg.width, height: jpeg.height, frames: [{ rgba: jpeg.rgba, delayMs: 0, index: 0, startMs: 0 }], sourceFrameCount: 1 }
-}
-
-// A still is a GIF's first frame alone.
-const STILL_FRAMES = 1
-
-// A still's pixels (a GIF's first frame), for scaling before it is sent on.
-export const decodeToRgba = (bytes: Uint8Array): Rgba | null => {
-  const sniffed = sniffImage(bytes)
-  if (sniffed === null || isEmpty(sniffed)) {
-    return null
-  }
-  if (sniffed.mediaType === 'image/png') {
-    return decodePng(bytes)
-  }
-  if (sniffed.mediaType === 'image/jpeg') {
-    return decodeJpeg(bytes)
-  }
-  const first = decodeGif(bytes, { maxFrames: STILL_FRAMES }).frames[0]
-  return first === undefined ? null : { width: sniffed.width, height: sniffed.height, rgba: first.rgba }
 }
 
 const MEDIA_TYPES: Record<string, string> = {

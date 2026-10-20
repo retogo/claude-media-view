@@ -21,8 +21,6 @@ export type Ports = {
   sessionId: () => Promise<string>
   readFile: (path: string) => Promise<Uint8Array>
   checkRead: (path: string) => Promise<ReadVerdict>
-  // Puts a Read of the path to the person, or the mode's decider: the refusal, or undefined once granted.
-  askRead: (path: string) => Promise<string | undefined>
   listDirectory: (path: string) => Promise<FileEntry[]>
   exists: (path: string) => Promise<boolean>
   // Rejects when the process cannot start or exits non-zero.

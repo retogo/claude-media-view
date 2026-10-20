@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { decodePng } from './png'
 import { cacheDirectoryName, framePlan } from './frameCache'
+import { readBack } from './png.testing'
 
 describe('framePlan', () => {
   test('writes a PNG once and draws it from its file', () => {
@@ -31,7 +31,7 @@ describe('framePlan', () => {
     })
 
     expect(plan.writes.map(write => write.path)).toEqual(['C:\\c\\k\\0.png', 'C:\\c\\k\\1.png'])
-    expect(plan.writes.map(write => decodePng(write.bytes).rgba)).toEqual([first, second])
+    expect(plan.writes.map(write => readBack(write.bytes).rgba)).toEqual([first, second])
     expect(plan.frames).toEqual([
       { source: { file: 'C:\\c\\k\\0.png', format: 'png' }, delayMs: 70 },
       { source: { file: 'C:\\c\\k\\1.png', format: 'png' }, delayMs: 120 },

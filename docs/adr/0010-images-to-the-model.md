@@ -1,6 +1,6 @@
 # 0010. Images reach the model as content blocks, one per GIF frame
 
-- Status: Accepted
+- Status: Superseded by 0032
 - Date: 2026-10-16
 
 ## Context

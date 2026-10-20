@@ -30,8 +30,4 @@ declare module 'claude-code' {
       imageTagRows: Record<string, string>
     }
   }
-
-  interface McpToolInputs {
-    'mcp__media-view__frames': { path: string; maxFrames?: number }
-  }
 }
