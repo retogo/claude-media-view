@@ -78,6 +78,42 @@ describe('sniffConverted', () => {
   })
 })
 
+describe('sniffConverted of an SVG', () => {
+  const svg = (text: string) => sniffConverted(new TextEncoder().encode(text))
+
+  test('takes the size its root element declares, in pixels', () => {
+    expect(svg('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100px"><rect/></svg>')).toEqual({ format: 'svg', width: 200, height: 100, frames: 1 })
+  })
+
+  test('takes the size of its viewBox where width and height are missing or relative', () => {
+    expect(svg('<svg viewBox="0 0 24 12"/>')).toEqual({ format: 'svg', width: 24, height: 12, frames: 1 })
+    expect(svg("<svg width='100%' height='100%' viewBox='-5 -5 40.5 20'/>")).toEqual({ format: 'svg', width: 41, height: 20, frames: 1 })
+  })
+
+  test('is drawn no larger than a still is kept, its shape kept', () => {
+    expect(svg('<svg width="4096" height="2048"/>')).toEqual({ format: 'svg', width: 1024, height: 512, frames: 1 })
+  })
+
+  test('finds the root after a byte order mark, an XML declaration, comments and white space', () => {
+    expect(svg('﻿<?xml version="1.0"?>\n<!-- drawn by hand -->\n<svg width="8" height="8"/>')).toEqual({ format: 'svg', width: 8, height: 8, frames: 1 })
+  })
+
+  test('answers null for an SVG with a document type, which may declare entities, or with no size, and for other XML', () => {
+    expect(svg('<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "aaaa">]><svg width="8" height="8">&a;</svg>')).toBeNull()
+    expect(svg('<svg width="8" height="8"><!DOCTYPE x></svg>')).toBeNull()
+    expect(svg('<svg/>')).toBeNull()
+    expect(svg('<svg width="0" height="8"/>')).toBeNull()
+    expect(svg('<html><svg width="8" height="8"/></html>')).toBeNull()
+  })
+
+  test('reads no root tag longer than any SVG needs, so a crafted one costs no more than its length', () => {
+    const started = performance.now()
+
+    expect(svg(`<svg${' width="'.repeat(200_000)}>`)).toBeNull()
+    expect(performance.now() - started).toBeLessThan(500)
+  })
+})
+
 describe('decodeMedia', () => {
   test('keeps a PNG as it is, with its size from the header', () => {
     const bytes = Uint8Array.fromBase64(PNG_1X1)

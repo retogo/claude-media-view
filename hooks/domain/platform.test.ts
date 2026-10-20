@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { ConvertedFormat } from './media/decode'
-import { convertCommand, convertsAnimation, makeDirectoryCommand, openCommand, osFrom, readChunkCommand, tmpRootFor, writeBytesCommand } from './platform'
+import { convertCommand, convertsAnimation, ffmpegConverts, makeDirectoryCommand, openCommand, osFrom, readChunkCommand, tmpRootFor, writeBytesCommand } from './platform'
 
 // Every ffmpeg conversion reads only local files, decodes no frame past the pixel cap, and names its demuxer.
 const FFMPEG_INPUT = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-protocol_whitelist', 'file', '-max_pixels', '24000000', '-f']
@@ -110,17 +110,19 @@ describe('readChunkCommand', () => {
 })
 
 describe('convertCommand', () => {
-  const still = (from: string, to: string, format: ConvertedFormat = 'webp') => ({ from, to, format, isAnimated: false })
+  const still = (from: string, to: string, format: ConvertedFormat = 'webp') => ({ from, to, format, isAnimated: false, width: 3, height: 2 })
+  // Every conversion is given up on past a time limit, as an SVG can take long to draw at any size.
+  const TIMEOUT = { timeoutMs: 10_000 }
 
   test('converts a still with sips on macOS', () => {
     expect(convertCommand('mac', 'os', still('/c/a b/source', '/c/a b/source.png'))).toEqual({
       argv: ['sips', '-s', 'format', 'png', '/c/a b/source', '--out', '/c/a b/source.png'],
-      init: {},
+      init: TIMEOUT,
     })
   })
 
   test('converts an animation to a GIF through ImageIO from JavaScript for Automation on macOS', () => {
-    const command = convertCommand('mac', 'os', { from: '/c/source', to: '/c/source.gif', format: 'webp', isAnimated: true })
+    const command = convertCommand('mac', 'os', { from: '/c/source', to: '/c/source.gif', format: 'webp', isAnimated: true, width: 64, height: 64 })
 
     expect(command?.argv.slice(0, 4)).toEqual(['osascript', '-l', 'JavaScript', '-e'])
     expect(command?.argv[4]).toContain("$('com.compuserve.gif')")
@@ -130,11 +132,11 @@ describe('convertCommand', () => {
   test('converts with ffmpeg on any OS where it is the converter: a still to PNG, an animation to a GIF of its own palette', () => {
     expect(convertCommand('linux', 'ffmpeg', still('/c/source', '/c/source.png'))).toEqual({
       argv: [...FFMPEG_INPUT, 'webp_pipe', '-i', '/c/source', '-frames:v', '1', '-update', '1', '/c/source.png'],
-      init: {},
+      init: TIMEOUT,
     })
-    expect(convertCommand('windows', 'ffmpeg', { from: 'C:\\c\\source', to: 'C:\\c\\source.gif', format: 'webp', isAnimated: true })).toEqual({
+    expect(convertCommand('windows', 'ffmpeg', { from: 'C:\\c\\source', to: 'C:\\c\\source.gif', format: 'webp', isAnimated: true, width: 64, height: 64 })).toEqual({
       argv: [...FFMPEG_INPUT, 'webp_anim', '-i', 'C:\\c\\source', '-filter_complex', 'split[a][b];[a]palettegen[p];[b][p]paletteuse', '-loop', '0', 'C:\\c\\source.gif'],
-      init: {},
+      init: TIMEOUT,
     })
   })
 
@@ -160,11 +162,27 @@ describe('convertCommand', () => {
         '-Command',
         "$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName PresentationCore; $i = [IO.File]::OpenRead($env:MEDIA_VIEW_PATH); $d = [Windows.Media.Imaging.BitmapDecoder]::Create($i, 'None', 'OnLoad'); $i.Close(); $e = New-Object Windows.Media.Imaging.PngBitmapEncoder; $e.Frames.Add($d.Frames[0]); $o = [IO.File]::Create($env:MEDIA_VIEW_OUT_PATH); $e.Save($o); $o.Close()",
       ],
-      init: { env: { MEDIA_VIEW_PATH: 'C:\\c\\source', MEDIA_VIEW_OUT_PATH: 'C:\\c\\source.png' } },
+      init: { env: { MEDIA_VIEW_PATH: 'C:\\c\\source', MEDIA_VIEW_OUT_PATH: 'C:\\c\\source.png' }, ...TIMEOUT },
     })
   })
 
   test('has no OS converter on Linux', () => {
     expect(convertCommand('linux', 'os', still('/c/source', '/c/source.png'))).toBeNull()
+  })
+
+  test('draws an SVG at its size through AppKit from JavaScript for Automation on macOS, and nowhere else', () => {
+    const svg = { from: '/c/source', to: '/c/source.png', format: 'svg', isAnimated: false, width: 800, height: 400 } as const
+    const command = convertCommand('mac', 'os', svg)
+
+    expect(command?.argv.slice(0, 4)).toEqual(['osascript', '-l', 'JavaScript', '-e'])
+    expect(command?.argv[4]).toContain('drawInRectFromRectOperationFraction')
+    expect(command?.argv.slice(5)).toEqual(['/c/source', '/c/source.png', '800', '400'])
+    expect(command?.init).toEqual(TIMEOUT)
+    expect(convertCommand('windows', 'os', { ...svg, from: 'C:\\c\\source', to: 'C:\\c\\source.png' })).toBeNull()
+    expect(convertCommand('linux', 'os', svg)).toBeNull()
+  })
+
+  test('leaves SVG to the OS: ffmpeg converts WebP, HEIC and TIFF', () => {
+    expect((['webp', 'heic', 'tiff', 'svg'] as const).map(ffmpegConverts)).toEqual([true, true, true, false])
   })
 })

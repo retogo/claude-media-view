@@ -1,7 +1,15 @@
 import { imageFileName } from '../domain/imageTags'
-import { decodeMedia, isCompleteImage, isDecodedName, MAX_CONVERTED_PIXELS, MAX_CONVERTED_TOTAL_PIXELS, sniffConverted } from '../domain/media/decode'
+import {
+  decodeMedia,
+  isCompleteImage,
+  isDecodedName,
+  MAX_CONVERTED_PIXELS,
+  MAX_CONVERTED_TOTAL_PIXELS,
+  sniffConverted,
+  type ConvertedFormat,
+} from '../domain/media/decode'
 import { cacheDirectoryName, framePlan, type Picture, type Plan } from '../domain/media/frameCache'
-import { convertCommand, convertsAnimation, joinPath, makeDirectoryCommand, writeBytesCommand, type Converter } from '../domain/platform'
+import { convertCommand, convertsAnimation, ffmpegConverts, joinPath, makeDirectoryCommand, writeBytesCommand, type Converter } from '../domain/platform'
 import type { SourceImage } from '../domain/readOutput'
 import type { Host, Ports } from './ports'
 
@@ -56,9 +64,9 @@ const decodeOrNull = (source: SourceImage | null) => {
   }
 }
 
-// ffmpeg where the person prefers it and it is installed, else the OS (ADR 0030).
-const converterFor = async (ports: Ports): Promise<Converter> =>
-  (await ports.prefersFfmpeg()) && (await ports.isFfmpegInstalled()) ? 'ffmpeg' : 'os'
+// ffmpeg where it converts the format, the person prefers it and it is installed, else the OS (ADRs 0030, 0031).
+const converterFor = async (ports: Ports, format: ConvertedFormat): Promise<Converter> =>
+  ffmpegConverts(format) && (await ports.prefersFfmpeg()) && (await ports.isFfmpegInstalled()) ? 'ffmpeg' : 'os'
 
 // A source in a converted format, as the PNG, or the GIF of an animation, its converter makes of it in the
 // picture's directory; null where the conversion or reading its output back fails, which no retry changes, and for
@@ -73,11 +81,12 @@ const convertedOrAsIs = async (ports: Ports, host: Host, directory: string, sour
   if (framePixels > MAX_CONVERTED_PIXELS || framePixels * converted.frames > MAX_CONVERTED_TOTAL_PIXELS) {
     return null
   }
-  const converter = await converterFor(ports)
+  const converter = await converterFor(ports, converted.format)
   const isAnimated = converted.frames > 1 && convertsAnimation(host.os, converter)
   const from = joinPath(host.os, directory, CONVERTED_SOURCE_FILE)
   const to = joinPath(host.os, directory, isAnimated ? CONVERTED_GIF_FILE : CONVERTED_PNG_FILE)
-  const convert = convertCommand(host.os, converter, { from, to, format: converted.format, isAnimated })
+  const { format, width, height } = converted
+  const convert = convertCommand(host.os, converter, { from, to, format, isAnimated, width, height })
   if (convert === null || !(await ports.convertsFormats())) {
     throw new NotConvertedNow()
   }

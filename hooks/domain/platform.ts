@@ -2,8 +2,8 @@ import { MAX_CONVERTED_PIXELS, type ConvertedFormat } from './media/decode'
 
 export type Os = 'mac' | 'linux' | 'windows'
 
-// A process to run: its argument vector, and its stdin and extra environment.
-export type Command = { argv: string[]; init: { stdin?: string; env?: Record<string, string> } }
+// A process to run: its argument vector, and its stdin, extra environment and time limit.
+export type Command = { argv: string[]; init: { stdin?: string; env?: Record<string, string>; timeoutMs?: number } }
 
 const WINDOWS_OS_VARIABLE = 'Windows_NT'
 const MAC_UNAME = 'Darwin'
@@ -65,7 +65,29 @@ const OUT_PATH_VARIABLE = 'MEDIA_VIEW_OUT_PATH'
 // What turns a converted format into a PNG or a GIF: the OS's own codecs, or an ffmpeg the person installed (ADR 0030).
 export type Converter = 'os' | 'ffmpeg'
 
-export type Conversion = { from: string; to: string; format: ConvertedFormat; isAnimated: boolean }
+// `width` and `height` are the sniffed size, at which an SVG is drawn.
+export type Conversion = { from: string; to: string; format: ConvertedFormat; isAnimated: boolean; width: number; height: number }
+
+// A conversion still running past this is given up on: a small SVG can still take long to draw (ADR 0031).
+const CONVERSION_TIMEOUT_MS = 10_000
+
+// AppKit draws an SVG into a bitmap of the size given, which it then writes as a PNG. An SVG's references to other
+// files or URLs are not followed: AppKit draws a placeholder for each (ADR 0031).
+const APPKIT_SVG_SCRIPT = `ObjC.import('AppKit')
+function run([from, to, width, height]) {
+  const image = $.NSImage.alloc.initWithContentsOfFile(from)
+  if (image.isNil()) {
+    throw new Error('AppKit read no SVG')
+  }
+  const bitmap = $.NSBitmapImageRep.alloc.initWithBitmapDataPlanesPixelsWidePixelsHighBitsPerSampleSamplesPerPixelHasAlphaIsPlanarColorSpaceNameBytesPerRowBitsPerPixel($(), Number(width), Number(height), 8, 4, true, false, $.NSDeviceRGBColorSpace, 0, 0)
+  $.NSGraphicsContext.saveGraphicsState
+  $.NSGraphicsContext.setCurrentContext($.NSGraphicsContext.graphicsContextWithBitmapImageRep(bitmap))
+  image.drawInRectFromRectOperationFraction($.NSMakeRect(0, 0, Number(width), Number(height)), $.NSZeroRect, $.NSCompositingOperationCopy, 1)
+  $.NSGraphicsContext.restoreGraphicsState
+  if (!bitmap.representationUsingTypeProperties($.NSBitmapImageFileTypePNG, $()).writeToFileAtomically(to, true)) {
+    throw new Error('AppKit wrote no PNG')
+  }
+}`
 
 // ImageIO writes an animated WebP's frames as a looping GIF, each held as long as the WebP holds it. JXA knows no
 // type for ImageIO's key constants, so the keys are written as the strings they stand for (ADR 0029).
@@ -90,27 +112,32 @@ const FFMPEG_GIF_FILTER = 'split[a][b];[a]palettegen[p];[b][p]paletteuse'
 // ffmpeg reads only the local file, as the demuxer of the format the module sniffed rather than whatever its own
 // probe finds, and decodes no frame past the module's pixel cap (ADR 0030).
 const FFMPEG = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-protocol_whitelist', 'file', '-max_pixels', String(MAX_CONVERTED_PIXELS), '-f']
-const FFMPEG_DEMUXERS: Record<ConvertedFormat, string> = { webp: 'webp_pipe', heic: 'mov', tiff: 'tiff_pipe' }
+// ffmpeg is commonly built without an SVG decoder, so it is left to the OS (ADR 0031).
+const FFMPEG_DEMUXERS: Partial<Record<ConvertedFormat, string>> = { webp: 'webp_pipe', heic: 'mov', tiff: 'tiff_pipe' }
 // ffmpeg reads an animated WebP's frames through a demuxer of its own, which refuses a still.
 const FFMPEG_ANIMATED_WEBP_DEMUXER = 'webp_anim'
 
 // Whether a converter keeps an animation, as a GIF: ffmpeg anywhere, the OS on macOS only.
 export const convertsAnimation = (os: Os, converter: Converter) => converter === 'ffmpeg' || os === 'mac'
 
-// Converts an image the module does not decode to a PNG of its first frame, or an animation to a GIF; null where
-// the OS has no codecs to rely on (ADR 0029).
-export const convertCommand = (os: Os, converter: Converter, { from, to, format, isAnimated }: Conversion): Command | null => {
+// Whether ffmpeg converts the format, where the person prefers it (ADR 0030).
+export const ffmpegConverts = (format: ConvertedFormat) => FFMPEG_DEMUXERS[format] !== undefined
+
+const commandFor = (os: Os, converter: Converter, { from, to, format, isAnimated, width, height }: Conversion): Command | null => {
   if (converter === 'ffmpeg') {
     const demuxer = isAnimated ? FFMPEG_ANIMATED_WEBP_DEMUXER : FFMPEG_DEMUXERS[format]
     const output = isAnimated ? ['-filter_complex', FFMPEG_GIF_FILTER, '-loop', '0'] : ['-frames:v', '1', '-update', '1']
-    return { argv: [...FFMPEG, demuxer, '-i', from, ...output, to], init: {} }
+    return demuxer === undefined ? null : { argv: [...FFMPEG, demuxer, '-i', from, ...output, to], init: {} }
   }
   if (os === 'mac') {
+    if (format === 'svg') {
+      return { argv: ['osascript', '-l', 'JavaScript', '-e', APPKIT_SVG_SCRIPT, from, to, String(width), String(height)], init: {} }
+    }
     return isAnimated
       ? { argv: ['osascript', '-l', 'JavaScript', '-e', IMAGE_IO_GIF_SCRIPT, from, to], init: {} }
       : { argv: ['sips', '-s', 'format', 'png', from, '--out', to], init: {} }
   }
-  if (os === 'windows') {
+  if (os === 'windows' && format !== 'svg') {
     return {
       argv: [
         ...POWERSHELL,
@@ -120,6 +147,13 @@ export const convertCommand = (os: Os, converter: Converter, { from, to, format,
     }
   }
   return null
+}
+
+// Converts an image the module does not decode to a PNG of its first frame, or an animation to a GIF, within a time
+// limit; null where the converter has no codec for it: the OS on Linux, an SVG anywhere but macOS (ADR 0029).
+export const convertCommand = (os: Os, converter: Converter, conversion: Conversion): Command | null => {
+  const command = commandFor(os, converter, conversion)
+  return command && { ...command, init: { ...command.init, timeoutMs: CONVERSION_TIMEOUT_MS } }
 }
 
 const OFFSET_VARIABLE = 'MEDIA_VIEW_OFFSET'

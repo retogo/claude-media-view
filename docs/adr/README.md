@@ -68,3 +68,4 @@ What follows: what gets easier, what gets harder, what is not built yet, what to
 | [0028](0028-call-observer-registered-first.md) | The hook that watches every tool call is registered first | Accepted |
 | [0029](0029-os-converts-webp-heic-tiff.md) | The OS converts WebP, HEIC and TIFF wherever a picture is loaded | Accepted |
 | [0030](0030-ffmpeg-converts-where-installed.md) | ffmpeg converts in place of the OS where the person installed it | Accepted |
+| [0031](0031-appkit-draws-svg-on-macos.md) | AppKit draws SVG on macOS, at the size it declares | Accepted |

@@ -194,6 +194,16 @@ describe('loadPicture of a converted format', () => {
     expect(converterOf(notPreferred.runs)).toBe('sips')
   })
 
+  test('draws an SVG at its size through the OS, though ffmpeg is installed and preferred', async () => {
+    const { ports, runs } = fakePorts({}, { isFfmpegInstalled: async () => true, readFile: readsConverted(PNG) })
+
+    const picture = await loadPicture(ports, 'svg', async () => ({ bytes: new TextEncoder().encode('<svg viewBox="0 0 24 12"/>') }))
+
+    expect(picture).toMatchObject({ width: 1, height: 1 })
+    expect(converterOf(runs)).toBe('osascript')
+    expect(runs.find(({ argv }) => argv[0] === 'osascript')?.argv.slice(-2)).toEqual(['24', '12'])
+  })
+
   test('converts an animated WebP to a GIF, and draws its frames', async () => {
     const { ports, runs } = fakePorts({}, { readFile: readsConverted(Uint8Array.fromBase64(TEN_FRAMES)) })
 

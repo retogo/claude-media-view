@@ -26,7 +26,7 @@ export const SETTING_LABELS: Record<SettingKey, string> = {
   toolCalls: 'Under Claude’s tool calls',
   assistantMessages: 'Under Claude’s replies',
   animateGifs: 'Animate GIFs',
-  convertFormats: 'Convert WebP, HEIC and TIFF through the OS',
+  convertFormats: 'Convert WebP, HEIC, TIFF and SVG through the OS',
   preferFfmpeg: 'Convert with ffmpeg instead, where installed',
 }
 

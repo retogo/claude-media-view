@@ -43,7 +43,7 @@ describe('/media-view settings', () => {
       'setting-convertFormats',
       'setting-preferFfmpeg',
     ])
-    expect(await pane.find({ type: 'Button', key: 'setting-convertFormats', text: '[x] Convert WebP, HEIC and TIFF through the OS' })).toBeDefined()
+    expect(await pane.find({ type: 'Button', key: 'setting-convertFormats', text: '[x] Convert WebP, HEIC, TIFF and SVG through the OS' })).toBeDefined()
     expect(await pane.find({ type: 'Button', key: 'setting-preferFfmpeg', text: '[x] Convert with ffmpeg instead, where installed' })).toBeDefined()
     expect(await pane.find({ type: 'Button', key: 'setting-toolCalls', text: '[x] Under Claude’s tool calls' })).toBeDefined()
     expect(await pane.find({ type: 'Button', key: 'setting-userMessages', text: '[x] Under prompts you sent' })).toBeDefined()

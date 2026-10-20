@@ -102,6 +102,30 @@ describe('AssistantMessage', () => {
     expect(await (await mountPhotoReply('reply-webp-on')).find({ type: 'Image' })).toBeDefined()
   })
 
+  test('draws an SVG the reply names, at the size it declares, through AppKit', async ($, on) => {
+    const DIAGRAM = '/work/out/diagram.svg'
+    on('tool.check', { tool: 'Read' }, () => ({ decision: 'allow' }))
+    const { runs } = await startSession($, on, {
+      files: [DIAGRAM],
+      contents: { [DIAGRAM]: new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160"/>').toBase64() },
+      hasFfmpeg: true,
+    })
+
+    const image = await (
+      await $.ui.mount({
+        plugin: PLUGIN,
+        surface: 'terminal',
+        component: 'AssistantMessage',
+        props: { text: `The diagram is at ${DIAGRAM}.`, isFirstOfReply: true },
+        requestId: 'reply-svg',
+        viewport: VIEWPORT,
+      })
+    ).find({ type: 'Image' })
+
+    expect(image).toBeDefined()
+    expect(runs.find(argv => argv[0] === 'osascript')?.slice(-2)).toEqual(['320', '160'])
+  })
+
   test('leaves the reply alone when image files named in replies are turned off', async ($, on) => {
     on('tool.check', { tool: 'Read' }, () => ({ decision: 'allow' }))
     await startSession($, on, { files: [CHART], stored: { settings: { assistantMessages: false } } })

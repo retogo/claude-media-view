@@ -44,8 +44,8 @@ Each folder names the event its usecases answer; the file names the matcher's va
 | paste cache   | The folder Claude Code writes pasted images to: `<tmp root>/<project>/<session>/images/<n>.<ext>`    |
 | picture       | A decoded image on disk: its size and its frames, each a file source for `Image`                     |
 | frame cache   | `<tmp root>/media-view/<key hash>/`, where pictures are written once                                 |
-| converted format | WebP, HEIC or TIFF: an image its converter turns into a PNG, or an animated WebP into a GIF, in the frame cache before it is decoded |
-| converter | What converts a converted format: the OS's codecs (macOS, Windows), or an ffmpeg the person installed, on any OS |
+| converted format | WebP, HEIC, TIFF or SVG: an image its converter turns into a PNG, or an animated WebP into a GIF, in the frame cache before it is decoded |
+| converter | What converts a converted format: the OS's codecs (macOS, Windows; SVG on macOS alone), or an ffmpeg the person installed, on any OS |
 | cell box      | The columns and rows of terminal cells a picture is drawn in                                         |
 | seen image    | An image the transcript drew from a tool's result, kept with the row (`requestId`) that drew it and its path (a Read's) or its tool (an MCP tool's), and the show setting it was drawn under |
 | shown at      | When an image showed in the chat: its tool call answered, or its prompt was sent from the composer |

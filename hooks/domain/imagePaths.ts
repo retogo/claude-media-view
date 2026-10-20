@@ -2,8 +2,8 @@
 // Two separators (`//host`, `/\host`, `\\host`) name a network share or a device, which merely reaching can hand
 // a host the person's credentials; they never match, nor does a drive followed by two.
 const ABSOLUTE_LOCAL_START = String.raw`(?:[A-Za-z]:[\\/](?![\\/])|\/(?![\\/]))`
-// The extensions of the formats this module decodes, and of those the OS converts for it (ADR 0029).
-const IMAGE_EXTENSION = String.raw`\.(?:png|gif|jpe?g|webp|hei[cf]|tiff?)`
+// The extensions of the formats this module decodes, and of those the OS converts for it (ADRs 0029, 0031).
+const IMAGE_EXTENSION = String.raw`\.(?:png|gif|jpe?g|webp|hei[cf]|tiff?|svg)`
 // A path in backticks, taken whole, spaces included: an absolute path ending in an image extension.
 const QUOTED = new RegExp(`\`(${ABSOLUTE_LOCAL_START}[^\`]*?${IMAGE_EXTENSION})\``, 'gi')
 // Prose splits into words at spaces, quotes and brackets; each word is tested on its own, so the text is read once.

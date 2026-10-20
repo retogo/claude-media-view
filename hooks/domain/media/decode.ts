@@ -62,6 +62,19 @@ const TIFF_SHORT = 3
 const TIFF_LONG = 4
 const TIFF_IMAGE_WIDTH = 256
 const TIFF_IMAGE_LENGTH = 257
+// An SVG is text whose first element is `<svg`; it has no pixels of its own, so it is drawn at the size it declares,
+// no larger than a still is kept (ADR 0031). An attribute counts only after white space, so `stroke-width` is not
+// `width`.
+const PROLOG_ENDS = [
+  { start: '<?', end: '?>' },
+  { start: '<!--', end: '-->' },
+]
+const SVG_ROOT = /^<svg[\s/>]/
+const SVG_ATTRIBUTE = /\s(width|height|viewBox)\s*=\s*(["'])(.*?)\2/g
+const PIXEL_LENGTH = /^\s*(\d+(?:\.\d+)?|\.\d+)\s*(?:px)?\s*$/
+const VIEW_BOX_SEPARATOR = /[\s,]+/
+const DOCUMENT_TYPE = /<!DOCTYPE/i
+const SVG_MAX_EDGE = 1024
 
 // `index` and `startMs` place the frame in its source, which may have had more frames.
 export type RgbaFrame = { rgba: Uint8Array; delayMs: number; index: number; startMs: number }
@@ -111,8 +124,8 @@ export const sniffImage = (bytes: Uint8Array): Sniffed | null => {
   return size === undefined ? null : { mediaType: 'image/jpeg', ...size }
 }
 
-// The formats the OS converts to PNG before the module decodes them (ADR 0029).
-export type ConvertedFormat = 'webp' | 'heic' | 'tiff'
+// The formats the OS converts to PNG before the module decodes them (ADRs 0029, 0031).
+export type ConvertedFormat = 'webp' | 'heic' | 'tiff' | 'svg'
 
 export type SniffedConverted = { format: ConvertedFormat; width: number; height: number; frames: number }
 
@@ -198,6 +211,54 @@ const webpFrames = (bytes: Uint8Array) => {
   return frames
 }
 
+// The start tag of an SVG's root element, past a byte order mark, an XML declaration, comments and white space;
+// undefined when the first element is not `<svg`.
+const svgRootTag = (text: string) => {
+  let rest = text.replace(/^﻿/, '')
+  for (;;) {
+    rest = rest.trimStart()
+    const prolog = PROLOG_ENDS.find(({ start }) => rest.startsWith(start))
+    if (prolog === undefined) {
+      break
+    }
+    const end = rest.indexOf(prolog.end)
+    if (end === -1) {
+      return undefined
+    }
+    rest = rest.slice(end + prolog.end.length)
+  }
+  return SVG_ROOT.test(rest) ? rest.slice(0, rest.indexOf('>') + 1) : undefined
+}
+
+// A length in pixels, as a number with no unit or `px`; undefined for a relative or other unit.
+const pixelLength = (value: string | undefined) => {
+  const match = value?.match(PIXEL_LENGTH)
+  return match ? Number(match[1]) : undefined
+}
+
+// An SVG's size: its root's width and height in pixels, else its viewBox's; scaled down to a still's edge.
+const svgSize = (tag: string): Size | undefined => {
+  const attributes = new Map([...tag.matchAll(SVG_ATTRIBUTE)].map(match => [match[1]!, match[3]!]))
+  const viewBox = attributes.get('viewBox')?.trim().split(VIEW_BOX_SEPARATOR).map(Number)
+  const declared = [pixelLength(attributes.get('width')), pixelLength(attributes.get('height'))]
+  const [width, height] = declared.every(length => length !== undefined) ? declared : [viewBox?.[2], viewBox?.[3]]
+  if (!(width! > 0 && height! > 0 && Number.isFinite(width! * height!))) {
+    return undefined
+  }
+  const scale = Math.min(1, SVG_MAX_EDGE / Math.max(width!, height!))
+  return { width: Math.max(1, Math.round(width! * scale)), height: Math.max(1, Math.round(height! * scale)) }
+}
+
+// An SVG's size, unless a document type could declare entities that expand as it is read.
+const svgShape = (bytes: Uint8Array): Size | undefined | null => {
+  const text = new TextDecoder().decode(bytes)
+  const tag = svgRootTag(text)
+  if (tag === undefined) {
+    return null
+  }
+  return DOCUMENT_TYPE.test(text) ? undefined : svgSize(tag)
+}
+
 const formatAndShape = (bytes: Uint8Array): [ConvertedFormat, Size | undefined, number] | null => {
   if (startsWith(bytes, RIFF_SIGNATURE) && startsWithAt(bytes, RIFF_FORM_OFFSET, WEBP_FORM)) {
     return ['webp', webpSize(bytes), webpFrames(bytes)]
@@ -208,7 +269,8 @@ const formatAndShape = (bytes: Uint8Array): [ConvertedFormat, Size | undefined, 
   if (startsWith(bytes, TIFF_INTEL_SIGNATURE) || startsWith(bytes, TIFF_MOTOROLA_SIGNATURE)) {
     return ['tiff', tiffSize(bytes, startsWith(bytes, TIFF_INTEL_SIGNATURE)), 1]
   }
-  return null
+  const svg = svgShape(bytes)
+  return svg === null ? null : ['svg', svg, 1]
 }
 
 // The converted format of an image, the size its header declares and its frames, so that its cost is known before
