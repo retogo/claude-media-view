@@ -90,13 +90,18 @@ const UNSAFE_SVG = [
   new RegExp(String.raw`<${ELEMENT_PREFIX}foreignObject\b`, 'i'),
   new RegExp(String.raw`<${ELEMENT_PREFIX}include\b`, 'i'),
 ]
-// A parser turns a character reference (`&#117;`, `&#x75;`) or a predefined entity (`&quot;`) into its character,
-// and CSS then turns an escape (`\75 `, `\u`) into its own: either could spell a reference the patterns would miss
-// in the raw text. A code point past Unicode's, or none, is read as the replacement character, as CSS reads it.
+// A parser ends every line with a line feed and turns a character reference (`&#117;`, `&#x75;`) or a predefined
+// entity (`&quot;`) into its character, and CSS then turns an escape (`\75 `, `\u`) into its own: either could spell
+// a reference the patterns would miss in the raw text. A CSS escape means nothing in a link, where `\23 a` is a
+// relative URL and not `#a`, so the patterns read the SVG both as the parser leaves it and as CSS then reads it, and
+// either reading's reference outside refuses it. A code point past Unicode's, or none, is read as the replacement
+// character, as CSS reads it.
+const LINE_END = /\r\n?/g
+const LINE_FEED = '\n'
 const CHARACTER_REFERENCE = /&#(?:x([0-9a-f]+)|([0-9]+));/gi
 const PREDEFINED_ENTITY = /&(lt|gt|amp|quot|apos);/g
 const PREDEFINED_CHARACTERS: Record<string, string> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" }
-const CSS_ESCAPE = /\\(?:([0-9a-f]{1,6})[ \t\n\r\f]?|([^\n\r\f0-9a-f]))/gi
+const CSS_ESCAPE = /\\(?:([0-9a-f]{1,6})[ \t\n\f]?|([^\n\f0-9a-f]))/gi
 const HEX = 16
 const MAX_CODE_POINT = 0x10ffff
 const REPLACEMENT_CHARACTER = '\uFFFD'
@@ -288,12 +293,22 @@ const isReadAsUtf8 = (text: string) => {
 const character = (codePoint: number) =>
   codePoint > 0 && codePoint <= MAX_CODE_POINT ? String.fromCodePoint(codePoint) : REPLACEMENT_CHARACTER
 
-// The SVG as a parser and then CSS read it: character references and predefined entities, then CSS escapes, decoded.
-const decodedSvg = (text: string) =>
+// The SVG as a parser leaves it: line ends, character references and predefined entities decoded.
+const parsedSvg = (text: string) =>
   text
+    .replace(LINE_END, LINE_FEED)
     .replace(CHARACTER_REFERENCE, (_, hex: string | undefined, decimal: string) => character(hex ? parseInt(hex, HEX) : Number(decimal)))
     .replace(PREDEFINED_ENTITY, (_, name: string) => PREDEFINED_CHARACTERS[name]!)
-    .replace(CSS_ESCAPE, (_, hex: string | undefined, other: string) => (hex ? character(parseInt(hex, HEX)) : other))
+
+// The parsed SVG as CSS reads it: its escapes decoded.
+const styledSvg = (parsed: string) =>
+  parsed.replace(CSS_ESCAPE, (_, hex: string | undefined, other: string) => (hex ? character(parseInt(hex, HEX)) : other))
+
+// Whether either reading of the SVG declares a document type or refers outside itself.
+const isUnsafeSvg = (text: string) => {
+  const parsed = parsedSvg(text)
+  return [parsed, styledSvg(parsed)].some(reading => UNSAFE_SVG.some(pattern => pattern.test(reading)))
+}
 
 // An SVG's size, unless a parser could read it in another encoding than UTF-8, or it declares a document type or
 // refers outside itself.
@@ -303,8 +318,7 @@ const svgShape = (bytes: Uint8Array): Size | undefined | null => {
   if (tag === undefined) {
     return null
   }
-  const decoded = decodedSvg(text)
-  return isReadAsUtf8(text) && !UNSAFE_SVG.some(pattern => pattern.test(decoded)) ? svgSize(tag) : undefined
+  return isReadAsUtf8(text) && !isUnsafeSvg(text) ? svgSize(tag) : undefined
 }
 
 const formatAndShape = (bytes: Uint8Array): [ConvertedFormat, Size | undefined, number] | null => {

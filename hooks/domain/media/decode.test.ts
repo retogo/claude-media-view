@@ -153,6 +153,8 @@ describe('sniffConverted of an SVG', () => {
     expect(inside('<svg:style>rect { fill: u\\rl(http://example.com/p.svg#a) }')).toBeNull()
     expect(inside('<rect style="fill: url(&quot;http://example.com/p.svg#a&quot;)"/>')).toBeNull()
     expect(inside('<text>a="</text><rect fill="&#117;rl(http://example.com/p.svg#a)"/>')).toBeNull()
+    expect(inside('<use href="\\23 a"/>')).toBeNull()
+    expect(inside('<rect style="fill: \\75\r\nrl(http://example.com/p.svg#a)"/>')).toBeNull()
     expect(inside('<text x="0" y="8">C:\\out &#8211; done</text><use href="&#35;a"/><style>rect { fill: url(#g) }</style>')).toEqual({
       format: 'svg',
       width: 8,
