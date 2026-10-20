@@ -97,11 +97,13 @@ const UNSAFE_SVG = [
 // either reading's reference outside refuses it. A code point past Unicode's, or none, is read as the replacement
 // character, as CSS reads it.
 const LINE_END = /\r\n?/g
+// CSS ends lines again, after the parser: a carriage return or form feed a character reference wrote is a line feed.
+const CSS_LINE_END = /\r\n?|\f/g
 const LINE_FEED = '\n'
 const CHARACTER_REFERENCE = /&#(?:x([0-9a-f]+)|([0-9]+));/gi
 const PREDEFINED_ENTITY = /&(lt|gt|amp|quot|apos);/g
 const PREDEFINED_CHARACTERS: Record<string, string> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" }
-const CSS_ESCAPE = /\\(?:([0-9a-f]{1,6})[ \t\n\f]?|([^\n\f0-9a-f]))/gi
+const CSS_ESCAPE = /\\(?:([0-9a-f]{1,6})[ \t\n]?|([^\n0-9a-f]))/gi
 const HEX = 16
 const MAX_CODE_POINT = 0x10ffff
 const REPLACEMENT_CHARACTER = '\uFFFD'
@@ -300,9 +302,11 @@ const parsedSvg = (text: string) =>
     .replace(CHARACTER_REFERENCE, (_, hex: string | undefined, decimal: string) => character(hex ? parseInt(hex, HEX) : Number(decimal)))
     .replace(PREDEFINED_ENTITY, (_, name: string) => PREDEFINED_CHARACTERS[name]!)
 
-// The parsed SVG as CSS reads it: its escapes decoded.
+// The parsed SVG as CSS reads it: its line ends, then its escapes, decoded.
 const styledSvg = (parsed: string) =>
-  parsed.replace(CSS_ESCAPE, (_, hex: string | undefined, other: string) => (hex ? character(parseInt(hex, HEX)) : other))
+  parsed
+    .replace(CSS_LINE_END, LINE_FEED)
+    .replace(CSS_ESCAPE, (_, hex: string | undefined, other: string) => (hex ? character(parseInt(hex, HEX)) : other))
 
 // Whether either reading of the SVG declares a document type or refers outside itself.
 const isUnsafeSvg = (text: string) => {
